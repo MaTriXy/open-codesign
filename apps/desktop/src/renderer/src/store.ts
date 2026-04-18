@@ -8,6 +8,7 @@ import type {
   SupportedOnboardingProvider,
 } from '@open-codesign/shared';
 import { create } from 'zustand';
+import type { StoreApi } from 'zustand';
 import type { CodesignApi, ExportFormat } from '../../preload/index';
 
 declare global {
@@ -37,6 +38,7 @@ interface CodesignState {
   messages: ChatMessage[];
   previewHtml: string | null;
   isGenerating: boolean;
+  activeGenerationId: string | null;
   errorMessage: string | null;
   lastError: string | null;
   config: OnboardingState | null;
@@ -61,6 +63,7 @@ interface CodesignState {
     attachments?: LocalInputFile[] | undefined;
     referenceUrl?: string | undefined;
   }) => Promise<void>;
+  cancelGeneration: () => void;
   retryLastPrompt: () => Promise<void>;
   applyInlineComment: (comment: string) => Promise<void>;
   clearError: () => void;
@@ -146,10 +149,62 @@ function tr(key: string, options?: Record<string, unknown>): string {
   return i18n.t(key, options ?? {}) as string;
 }
 
+type SetState = StoreApi<CodesignState>['setState'];
+type GetState = StoreApi<CodesignState>['getState'];
+
+function finishIfCurrent(
+  set: SetState,
+  generationId: string,
+  update: (state: CodesignState) => Partial<CodesignState>,
+): void {
+  set((state) => (state.activeGenerationId === generationId ? update(state) : {}));
+}
+
+function applyGenerateSuccess(
+  set: SetState,
+  generationId: string,
+  result: { artifacts: Array<{ content: string }>; message: string },
+): void {
+  const firstArtifact = result.artifacts[0];
+  finishIfCurrent(set, generationId, (state) => ({
+    messages: [
+      ...state.messages,
+      { role: 'assistant', content: result.message || tr('common.done') },
+    ],
+    previewHtml: firstArtifact?.content ?? state.previewHtml,
+    isGenerating: false,
+    activeGenerationId: null,
+  }));
+}
+
+function applyGenerateError(
+  get: GetState,
+  set: SetState,
+  generationId: string,
+  err: unknown,
+): void {
+  const msg = err instanceof Error ? err.message : tr('errors.unknown');
+  if (get().activeGenerationId !== generationId) return;
+
+  finishIfCurrent(set, generationId, (state) => ({
+    messages: [...state.messages, { role: 'assistant', content: `Error: ${msg}` }],
+    isGenerating: false,
+    activeGenerationId: null,
+    errorMessage: msg,
+    lastError: msg,
+  }));
+  get().pushToast({
+    variant: 'error',
+    title: tr('notifications.generationFailed'),
+    description: msg,
+  });
+}
+
 export const useCodesignStore = create<CodesignState>((set, get) => ({
   messages: [],
   previewHtml: null,
   isGenerating: false,
+  activeGenerationId: null,
   errorMessage: null,
   lastError: null,
   config: null,
@@ -278,11 +333,13 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         : {}),
     };
 
+    const generationId = newId();
     const history = get().messages;
     const userMessage: ChatMessage = { role: 'user', content: prompt };
     set((s) => ({
       messages: [...s.messages, userMessage],
       isGenerating: true,
+      activeGenerationId: generationId,
       errorMessage: null,
       lastPromptInput: request,
       selectedElement: null,
@@ -296,30 +353,46 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         model: modelRef(cfg.provider, cfg.modelPrimary),
         ...(request.referenceUrl ? { referenceUrl: request.referenceUrl } : {}),
         attachments: request.attachments,
+        generationId,
       });
-      const firstArtifact = result.artifacts[0];
-      set((s) => ({
-        messages: [
-          ...s.messages,
-          { role: 'assistant', content: result.message || tr('common.done') },
-        ],
-        previewHtml: firstArtifact?.content ?? s.previewHtml,
-        isGenerating: false,
-      }));
+      applyGenerateSuccess(
+        set,
+        generationId,
+        result as { artifacts: Array<{ content: string }>; message: string },
+      );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : tr('errors.unknown');
-      set((s) => ({
-        messages: [...s.messages, { role: 'assistant', content: `Error: ${msg}` }],
-        isGenerating: false,
-        errorMessage: msg,
-        lastError: msg,
-      }));
+      applyGenerateError(get, set, generationId, err);
+    }
+  },
+
+  cancelGeneration() {
+    const id = get().activeGenerationId;
+    if (!id) return;
+    if (!window.codesign) {
+      const msg = tr('errors.rendererDisconnected');
+      set({ errorMessage: msg, lastError: msg });
       get().pushToast({
         variant: 'error',
-        title: tr('notifications.generationFailed'),
+        title: tr('notifications.cancellationFailed'),
         description: msg,
       });
+      return;
     }
+
+    void window.codesign
+      .cancelGeneration(id)
+      .then(() => {
+        finishIfCurrent(set, id, () => ({ isGenerating: false, activeGenerationId: null }));
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : tr('errors.unknown');
+        set({ errorMessage: msg, lastError: msg });
+        get().pushToast({
+          variant: 'error',
+          title: tr('notifications.cancellationFailed'),
+          description: msg,
+        });
+      });
   },
 
   async retryLastPrompt() {

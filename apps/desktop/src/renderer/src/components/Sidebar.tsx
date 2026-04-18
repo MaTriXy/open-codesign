@@ -1,6 +1,7 @@
 import { useT } from '@open-codesign/i18n';
-import { ArrowUp, FolderOpen, Link2, Paperclip, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { IconButton } from '@open-codesign/ui';
+import { ArrowUp, FolderOpen, Link2, Paperclip, Square, X } from 'lucide-react';
+import { type FormEvent, type KeyboardEvent, useEffect, useRef } from 'react';
 import { useCodesignStore } from '../store';
 
 export interface SidebarProps {
@@ -9,11 +10,33 @@ export interface SidebarProps {
   onSubmit: () => void;
 }
 
+const MAX_TEXTAREA_ROWS = 6;
+
+export function getTextareaLineHeight(el: HTMLTextAreaElement): number {
+  const styles = getComputedStyle(el);
+  const lineHeight = Number.parseFloat(styles.lineHeight);
+  if (Number.isFinite(lineHeight) && lineHeight > 0) return lineHeight;
+
+  const fontSize = Number.parseFloat(styles.fontSize);
+  const leading = Number.parseFloat(styles.getPropertyValue('--leading-body'));
+  if (!Number.isFinite(fontSize) || fontSize <= 0 || !Number.isFinite(leading) || leading <= 0) {
+    throw new Error('Textarea sizing tokens (--leading-body / fontSize) are missing or invalid');
+  }
+  return fontSize * leading;
+}
+
+function resizeTextarea(el: HTMLTextAreaElement): void {
+  const rowHeight = getTextareaLineHeight(el);
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight, rowHeight * MAX_TEXTAREA_ROWS)}px`;
+}
+
 export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
   const t = useT();
   const config = useCodesignStore((s) => s.config);
   const messages = useCodesignStore((s) => s.messages);
   const isGenerating = useCodesignStore((s) => s.isGenerating);
+  const cancelGeneration = useCodesignStore((s) => s.cancelGeneration);
   const inputFiles = useCodesignStore((s) => s.inputFiles);
   const referenceUrl = useCodesignStore((s) => s.referenceUrl);
   const setReferenceUrl = useCodesignStore((s) => s.setReferenceUrl);
@@ -26,19 +49,16 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
   const designSystem = config?.designSystem ?? null;
 
   useEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+    if (taRef.current) resizeTextarea(taRef.current);
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent): void {
     e.preventDefault();
     if (!prompt.trim() || isGenerating) return;
     onSubmit();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -48,7 +68,7 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
   const canSend = prompt.trim().length > 0 && !isGenerating;
 
   return (
-    <aside className="flex flex-col border-r border-[var(--color-border)] bg-[var(--color-background-secondary)] min-h-0">
+    <aside className="flex flex-col min-h-0 border-r border-[var(--color-border)] bg-[var(--color-background-secondary)]">
       <div className="px-5 py-5 border-b border-[var(--color-border-muted)] space-y-3">
         <div className="space-y-2">
           <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)] font-medium">
@@ -157,7 +177,7 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
           messages.map((m, i) => (
             <div
               key={`${m.role}-${i}-${m.content.slice(0, 8)}`}
-              className={`px-4 py-3 rounded-[var(--radius-lg)] text-[var(--text-sm)] leading-[1.55] ${
+              className={`px-[var(--space-4)] py-[var(--space-3)] rounded-[var(--radius-lg)] text-[var(--text-sm)] leading-[var(--leading-body)] ${
                 m.role === 'user'
                   ? 'bg-[var(--color-accent-soft)] text-[var(--color-text-primary)] border border-[var(--color-accent-muted)]'
                   : 'bg-[var(--color-surface)] border border-[var(--color-border-muted)] text-[var(--color-text-primary)]'
@@ -170,53 +190,43 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="border-t border-[var(--color-border-muted)] p-4">
-        <div className="relative flex items-end gap-2 p-2 rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-focus-ring)] transition-[box-shadow,border-color] duration-150 ease-[var(--ease-out)]">
+        <div className="relative rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-focus-ring)] transition-[box-shadow,border-color] duration-150 ease-[var(--ease-out)]">
           <textarea
             ref={taRef}
             value={prompt}
             onChange={(e) => {
               setPrompt(e.target.value);
-              e.currentTarget.style.height = 'auto';
-              e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 160)}px`;
+              resizeTextarea(e.currentTarget);
             }}
             onKeyDown={handleKeyDown}
             placeholder={t('chat.placeholder')}
             disabled={isGenerating}
             rows={1}
-            className="flex-1 resize-none bg-transparent px-2 py-1 text-[var(--text-sm)] leading-[1.5] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none min-h-[24px] max-h-[160px]"
+            className="block w-full resize-none bg-transparent px-[var(--space-3)] pt-[var(--space-3)] pb-[calc(var(--space-6)+var(--space-4))] text-[var(--text-sm)] leading-[var(--leading-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none min-h-[var(--space-6)] overflow-y-auto"
           />
-          <button
-            type="submit"
-            disabled={!canSend}
-            aria-label={t('common.send')}
-            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white shadow-[var(--shadow-soft)] hover:bg-[var(--color-accent-hover)] hover:scale-[1.04] active:scale-[0.96] disabled:opacity-30 disabled:hover:scale-100 disabled:pointer-events-none transition-[transform,background-color,opacity] duration-150 ease-[var(--ease-out)]"
-          >
-            <ArrowUp className="w-4 h-4" strokeWidth={2.4} />
-          </button>
-        </div>
-        <div className="mt-2 px-1 text-[11px] text-[var(--color-text-muted)] flex items-center justify-between">
-          <span>
-            <kbd
-              className="px-[5px] py-[1px] rounded-[4px] bg-[var(--color-surface-active)] text-[10px] text-[var(--color-text-secondary)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Enter
-            </kbd>{' '}
-            {t('chat.sendAction')} /{' '}
-            <kbd
-              className="px-[5px] py-[1px] rounded-[4px] bg-[var(--color-surface-active)] text-[10px] text-[var(--color-text-secondary)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Cmd/Ctrl+Enter
-            </kbd>{' '}
-            {t('chat.sendAnywhere')}
-          </span>
-          {isGenerating ? (
-            <span className="inline-flex items-center gap-1.5 text-[var(--color-accent)]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              {t('common.working')}
-            </span>
-          ) : null}
+
+          <div className="absolute bottom-[var(--space-2)] right-[var(--space-2)]">
+            {isGenerating ? (
+              <IconButton
+                size="sm"
+                label={t('chat.stop')}
+                onClick={cancelGeneration}
+                className="bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] hover:text-[var(--color-on-accent)] hover:scale-[1.04] active:scale-[0.96] transition-[transform,background-color,color] duration-150 ease-[var(--ease-out)]"
+              >
+                <Square className="w-4 h-4" strokeWidth={0} fill="currentColor" />
+              </IconButton>
+            ) : (
+              <IconButton
+                size="sm"
+                type="submit"
+                label={t('chat.send')}
+                disabled={!canSend}
+                className="bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-[var(--shadow-soft)] hover:bg-[var(--color-accent-hover)] hover:text-[var(--color-on-accent)] hover:scale-[1.04] active:scale-[0.96] disabled:opacity-30 disabled:hover:scale-100 transition-[transform,background-color,opacity,color] duration-150 ease-[var(--ease-out)]"
+              >
+                <ArrowUp className="w-4 h-4" strokeWidth={2.4} />
+              </IconButton>
+            )}
+          </div>
         </div>
       </form>
     </aside>

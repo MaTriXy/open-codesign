@@ -110,8 +110,24 @@ export const GeneratePayload = z.object({
   baseUrl: z.string().url().optional(),
   referenceUrl: z.string().url().optional(),
   attachments: z.array(LocalInputFile).max(12).default([]),
+  generationId: z.string().optional(),
 });
 export type GeneratePayload = z.infer<typeof GeneratePayload>;
+
+/** @deprecated Use GeneratePayloadV1. */
+export type LegacyGeneratePayload = GeneratePayload;
+
+export const GeneratePayloadV1 = z.object({
+  schemaVersion: z.literal(1),
+  prompt: z.string().min(1).max(32_000),
+  history: z.array(ChatMessage).max(200),
+  model: ModelRef,
+  baseUrl: z.string().url().optional(),
+  referenceUrl: z.string().url().optional(),
+  attachments: z.array(LocalInputFile).max(12).default([]),
+  generationId: z.string().min(1),
+});
+export type GeneratePayloadV1 = z.infer<typeof GeneratePayloadV1>;
 
 export const ApplyCommentPayload = z.object({
   html: z.string().min(1).max(500_000),
@@ -122,6 +138,12 @@ export const ApplyCommentPayload = z.object({
   attachments: z.array(LocalInputFile).max(12).default([]),
 });
 export type ApplyCommentPayload = z.infer<typeof ApplyCommentPayload>;
+
+export const CancelGenerationPayloadV1 = z.object({
+  schemaVersion: z.literal(1),
+  generationId: z.string().min(1),
+});
+export type CancelGenerationPayloadV1 = z.infer<typeof CancelGenerationPayloadV1>;
 
 /**
  * Iframe runtime error event — schema for the postMessage payload sent by

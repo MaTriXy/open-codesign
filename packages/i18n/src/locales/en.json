@@ -45,7 +45,9 @@
     "sendShortcut": "Send (Enter)",
     "emptyHint": "Start with a starter prompt or your own idea.",
     "sendAction": "send",
-    "sendAnywhere": "anywhere"
+    "sendAnywhere": "anywhere",
+    "send": "Send prompt",
+    "stop": "Stop generation"
   },
   "sidebar": {
     "localContext": "Local context",
@@ -165,6 +167,7 @@
     "designSystemCleared": "Design system cleared",
     "clearDesignSystemFailed": "Unable to clear design system",
     "generationFailed": "Generation failed",
+    "cancellationFailed": "Cancellation failed",
     "inlineCommentFailed": "Inline comment failed",
     "noDesignToExport": "No design to export yet.",
     "exportedTo": "Exported to {{path}}"

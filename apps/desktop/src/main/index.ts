@@ -3,12 +3,20 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyComment, generate } from '@open-codesign/core';
 import { detectProviderFromKey } from '@open-codesign/providers';
-import { ApplyCommentPayload, BRAND, CodesignError, GeneratePayload } from '@open-codesign/shared';
+import {
+  ApplyCommentPayload,
+  BRAND,
+  CancelGenerationPayloadV1,
+  CodesignError,
+  GeneratePayload,
+  GeneratePayloadV1,
+} from '@open-codesign/shared';
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { scanDesignSystem } from './design-system';
 import { BrowserWindow, app, dialog, ipcMain, shell } from './electron-runtime';
 import { registerExporterIpc } from './exporter-ipc';
+import { cancelGenerationRequest } from './generation-ipc';
 import { registerLocaleIpc } from './locale-ipc';
 import { getLogPath, getLogger, initLogger } from './logger';
 import {
@@ -61,6 +69,9 @@ function createWindow(): void {
 
 function registerIpcHandlers(): void {
   const logIpc = getLogger('main:ipc');
+
+  /** In-flight requests: generationId → AbortController */
+  const inFlight = new Map<string, AbortController>();
 
   ipcMain.handle('codesign:detect-provider', (_e, key: unknown) => {
     if (typeof key !== 'string') {
@@ -119,8 +130,12 @@ function registerIpcHandlers(): void {
     return nextState;
   });
 
-  ipcMain.handle('codesign:generate', async (_e, raw: unknown) => {
-    const payload = GeneratePayload.parse(raw);
+  ipcMain.handle('codesign:v1:generate', async (_e, raw: unknown) => {
+    const payload = GeneratePayloadV1.parse(raw);
+    const controller = new AbortController();
+    const id = payload.generationId;
+    inFlight.set(id, controller);
+
     const apiKey = getApiKeyForProvider(payload.model.provider);
     const storedBaseUrl = getBaseUrlForProvider(payload.model.provider);
     const baseUrl = payload.baseUrl ?? storedBaseUrl;
@@ -132,6 +147,7 @@ function registerIpcHandlers(): void {
     });
 
     logIpc.info('generate', {
+      id,
       provider: payload.model.provider,
       modelId: payload.model.modelId,
       promptLen: payload.prompt.length,
@@ -153,8 +169,10 @@ function registerIpcHandlers(): void {
         referenceUrl: promptContext.referenceUrl,
         designSystem: promptContext.designSystem ?? null,
         ...(baseUrl !== undefined ? { baseUrl } : {}),
+        signal: controller.signal,
       });
       logIpc.info('generate.ok', {
+        id,
         ms: Date.now() - t0,
         artifacts: result.artifacts.length,
         cost: result.costUsd,
@@ -162,6 +180,7 @@ function registerIpcHandlers(): void {
       return result;
     } catch (err) {
       logIpc.error('generate.fail', {
+        id,
         ms: Date.now() - t0,
         provider: payload.model.provider,
         modelId: payload.model.modelId,
@@ -170,7 +189,83 @@ function registerIpcHandlers(): void {
         code: err instanceof CodesignError ? err.code : undefined,
       });
       throw err;
+    } finally {
+      inFlight.delete(id);
     }
+  });
+
+  // Legacy shim — kept for one minor release while older renderer builds still
+  // send codesign:generate without schemaVersion. Remove after v0.3.
+  ipcMain.handle('codesign:generate', async (_e, raw: unknown) => {
+    logIpc.warn('legacy codesign:generate channel used, schedule removal next minor');
+    const legacy = GeneratePayload.parse(raw);
+    const id = legacy.generationId ?? `gen-${Date.now()}`;
+    const v1Raw = { schemaVersion: 1 as const, ...legacy, generationId: id };
+    const payload = GeneratePayloadV1.parse(v1Raw);
+    const controller = new AbortController();
+    inFlight.set(id, controller);
+
+    const apiKey = getApiKeyForProvider(payload.model.provider);
+    const storedBaseUrl = getBaseUrlForProvider(payload.model.provider);
+    const baseUrl = payload.baseUrl ?? storedBaseUrl;
+    const cfg = getCachedConfig();
+    const promptContext = await preparePromptContext({
+      attachments: payload.attachments,
+      referenceUrl: payload.referenceUrl,
+      designSystem: cfg?.designSystem ?? null,
+    });
+
+    logIpc.info('generate', {
+      id,
+      provider: payload.model.provider,
+      modelId: payload.model.modelId,
+      promptLen: payload.prompt.length,
+      historyLen: payload.history.length,
+      attachmentCount: payload.attachments.length,
+      hasReferenceUrl: payload.referenceUrl !== undefined,
+      hasDesignSystem: promptContext.designSystem !== null,
+      baseUrl: baseUrl ?? '<default>',
+    });
+
+    const t0 = Date.now();
+    try {
+      const result = await generate({
+        prompt: payload.prompt,
+        history: payload.history,
+        model: payload.model,
+        apiKey,
+        attachments: promptContext.attachments,
+        referenceUrl: promptContext.referenceUrl,
+        designSystem: promptContext.designSystem ?? null,
+        ...(baseUrl !== undefined ? { baseUrl } : {}),
+        signal: controller.signal,
+      });
+      logIpc.info('generate.ok', {
+        id,
+        ms: Date.now() - t0,
+        artifacts: result.artifacts.length,
+        cost: result.costUsd,
+      });
+      return result;
+    } catch (err) {
+      logIpc.error('generate.fail', {
+        id,
+        ms: Date.now() - t0,
+        provider: payload.model.provider,
+        modelId: payload.model.modelId,
+        baseUrl: baseUrl ?? '<default>',
+        message: err instanceof Error ? err.message : String(err),
+        code: err instanceof CodesignError ? err.code : undefined,
+      });
+      throw err;
+    } finally {
+      inFlight.delete(id);
+    }
+  });
+
+  ipcMain.handle('codesign:v1:cancel-generation', (_e, raw: unknown) => {
+    const { generationId } = CancelGenerationPayloadV1.parse(raw);
+    cancelGenerationRequest(generationId, inFlight, logIpc);
   });
 
   ipcMain.handle('codesign:apply-comment', async (_e, raw: unknown) => {
