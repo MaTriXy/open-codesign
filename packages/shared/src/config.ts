@@ -53,8 +53,8 @@ export type StoredDesignSystem = z.infer<typeof StoredDesignSystem>;
 export const ConfigSchema = z.object({
   version: z.literal(1).default(1),
   provider: ProviderIdEnum,
-  modelPrimary: z.string().min(1),
-  modelFast: z.string().min(1),
+  modelPrimary: z.string(),
+  modelFast: z.string(),
   secrets: z.record(ProviderIdEnum, SecretRef).default({}),
   baseUrls: z.record(ProviderIdEnum, BaseUrlRef).default({}),
   designSystem: StoredDesignSystem.optional(),
