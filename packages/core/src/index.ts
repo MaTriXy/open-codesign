@@ -1,9 +1,15 @@
 import { type ArtifactEvent, createArtifactParser } from '@open-codesign/artifacts';
 import type { GenerateResult } from '@open-codesign/providers';
-import { type RetryReason, complete, completeWithRetry } from '@open-codesign/providers';
+import {
+  type RetryReason,
+  complete,
+  completeWithRetry,
+  matchSkillsToPrompt,
+} from '@open-codesign/providers';
 import type {
   Artifact,
   ChatMessage,
+  LoadedSkill,
   ModelRef,
   SelectedElement,
   StoredDesignSystem,
@@ -12,6 +18,7 @@ import { CodesignError } from '@open-codesign/shared';
 import { remapProviderError } from './errors.js';
 import { type CoreLogger, NOOP_LOGGER } from './logger.js';
 import { type PromptComposeOptions, composeSystemPrompt } from './prompts/index.js';
+import { loadBuiltinSkills } from './skills/loader.js';
 
 export type { PromptComposeOptions };
 export type { CoreLogger } from './logger.js';
@@ -80,6 +87,12 @@ export interface GenerateOutput {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  /**
+   * Non-fatal issues surfaced during this generate call (e.g. builtin skill
+   * loader failed). Callers MUST forward these to the UI — this is the
+   * "no silent fallbacks" escape hatch for best-effort substeps.
+   */
+  warnings?: string[];
 }
 
 interface Collected {
@@ -345,6 +358,35 @@ function extractStatus(err: unknown): number | undefined {
   return undefined;
 }
 
+function formatSkillBlob(skill: LoadedSkill): string {
+  return `### Skill: ${skill.frontmatter.name}\n\n${skill.body.trim()}`;
+}
+
+// Skill loading is best-effort: a missing or unreadable builtin directory must
+// not block generation, but the failure must surface (logged at error level
+// AND returned as a warning so the UI can show it). This honours
+// PRINCIPLES "no silent fallbacks" without sacrificing the user's response.
+async function collectMatchedSkillBlobs(
+  userPrompt: string,
+  log: CoreLogger,
+): Promise<{ blobs: string[]; warnings: string[] }> {
+  let skills: LoadedSkill[];
+  try {
+    skills = await loadBuiltinSkills();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const errorClass = err instanceof Error ? err.constructor.name : typeof err;
+    log.error('[generate] step=load_skills.fail', { errorClass, message });
+    console.warn(`[open-codesign] builtin skills failed to load (${errorClass}): ${message}`);
+    return {
+      blobs: [],
+      warnings: [`Builtin skills unavailable: ${message}`],
+    };
+  }
+  const matched = matchSkillsToPrompt(skills, userPrompt);
+  return { blobs: matched.map(formatSkillBlob), warnings: [] };
+}
+
 export async function generate(input: GenerateInput): Promise<GenerateOutput> {
   const log = input.logger ?? NOOP_LOGGER;
   const ctx = {
@@ -376,6 +418,10 @@ export async function generate(input: GenerateInput): Promise<GenerateOutput> {
 
   log.info('[generate] step=build_request', ctx);
   const buildStart = Date.now();
+  const skillResult = input.systemPrompt
+    ? { blobs: [], warnings: [] }
+    : await collectMatchedSkillBlobs(input.prompt, log);
+  const skillBlobs = skillResult.blobs;
   const messages: ChatMessage[] = [
     {
       role: 'system',
@@ -383,6 +429,7 @@ export async function generate(input: GenerateInput): Promise<GenerateOutput> {
         input.systemPrompt ??
         composeSystemPrompt({
           mode: 'create',
+          ...(skillBlobs.length > 0 ? { skills: skillBlobs } : {}),
         }),
     },
     ...input.history,
@@ -392,9 +439,11 @@ export async function generate(input: GenerateInput): Promise<GenerateOutput> {
     ...ctx,
     ms: Date.now() - buildStart,
     messages: messages.length,
+    skills: skillBlobs.length,
+    skillWarnings: skillResult.warnings.length,
   });
 
-  return runModel({
+  const output = await runModel({
     model: input.model,
     apiKey: input.apiKey,
     baseUrl: input.baseUrl,
@@ -403,6 +452,9 @@ export async function generate(input: GenerateInput): Promise<GenerateOutput> {
     messages,
     logger: input.logger,
   });
+  return skillResult.warnings.length > 0
+    ? { ...output, warnings: [...(output.warnings ?? []), ...skillResult.warnings] }
+    : output;
 }
 
 export async function applyComment(input: ApplyCommentInput): Promise<GenerateOutput> {
