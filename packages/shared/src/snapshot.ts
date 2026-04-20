@@ -35,6 +35,68 @@ export const DesignMessageV1 = z.object({
 });
 export type DesignMessage = z.infer<typeof DesignMessageV1>;
 
+export const ChatMessageKind = z.enum([
+  'user',
+  'assistant_text',
+  'tool_call',
+  'artifact_delivered',
+  'error',
+]);
+export type ChatMessageKind = z.infer<typeof ChatMessageKind>;
+
+/**
+ * Row from the chat_messages table. `payload` is a JSON string on disk; the
+ * typed variants are parsed at the IPC boundary. Schema must anticipate
+ * Phase 2 tool events (tool_call with verbGroup) even though Phase 1 only
+ * emits user / assistant_text / artifact_delivered.
+ */
+export const ChatMessageRowV1 = z.object({
+  schemaVersion: z.literal(1).default(1),
+  id: z.number().int(),
+  designId: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  kind: ChatMessageKind,
+  payload: z.unknown(),
+  snapshotId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type ChatMessageRow = z.infer<typeof ChatMessageRowV1>;
+
+export interface ChatAppendInput {
+  designId: string;
+  kind: ChatMessageKind;
+  payload: unknown;
+  snapshotId?: string | null;
+}
+
+// Payload shapes (not strictly validated — payload is opaque JSON in DB).
+export interface ChatUserPayload {
+  text: string;
+  attachedSkills?: string[];
+}
+export interface ChatAssistantTextPayload {
+  text: string;
+}
+export interface ChatArtifactDeliveredPayload {
+  filename?: string;
+  createdAt: string;
+}
+export interface ChatErrorPayload {
+  message: string;
+  code?: string;
+}
+export interface ChatToolCallPayload {
+  toolName: string;
+  command?: string;
+  args: Record<string, unknown>;
+  status: 'running' | 'done' | 'error';
+  result?: unknown;
+  error?: { message: string; code?: string };
+  startedAt: string;
+  durationMs?: number;
+  verbGroup: string;
+}
+
 export interface SnapshotCreateInput {
   designId: string;
   parentId: string | null;

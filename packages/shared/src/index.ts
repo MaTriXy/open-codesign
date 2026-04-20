@@ -236,8 +236,20 @@ export type { ProxyPresetId } from './proxy-presets';
 export { DesignTokenV1, DesignTokenSet } from './design-token';
 export type { DesignToken } from './design-token';
 
-export { DesignMessageV1, DesignSnapshotV1, DesignV1 } from './snapshot';
-export type { Design, DesignMessage, DesignSnapshot, SnapshotCreateInput } from './snapshot';
+export { ChatMessageKind, ChatMessageRowV1, DesignMessageV1, DesignSnapshotV1, DesignV1 } from './snapshot';
+export type {
+  ChatAppendInput,
+  ChatArtifactDeliveredPayload,
+  ChatAssistantTextPayload,
+  ChatErrorPayload,
+  ChatMessageRow,
+  ChatToolCallPayload,
+  ChatUserPayload,
+  Design,
+  DesignMessage,
+  DesignSnapshot,
+  SnapshotCreateInput,
+} from './snapshot';
 
 export { SkillFrontmatterV1 } from './skills';
 export type { LoadedSkill } from './skills';
