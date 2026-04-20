@@ -1,6 +1,5 @@
-import { join, basename, dirname } from 'node:path';
-import type { AgentStreamEvent } from '../preload/index';
 import { stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   type AgentEvent,
@@ -23,6 +22,7 @@ import {
 } from '@open-codesign/shared';
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import type { AgentStreamEvent } from '../preload/index';
 import { registerChatMessagesIpc, registerChatMessagesUnavailableIpc } from './chat-messages-ipc';
 import { registerCommentsIpc, registerCommentsUnavailableIpc } from './comments-ipc';
 import { registerConnectionIpc } from './connection-ipc';
@@ -272,9 +272,7 @@ function registerIpcHandlers(): void {
               ? (event.args as Record<string, unknown>)
               : {};
           const command =
-            typeof argsObj['command'] === 'string'
-              ? (argsObj['command'] as string)
-              : undefined;
+            typeof argsObj['command'] === 'string' ? (argsObj['command'] as string) : undefined;
           sendEvent({
             ...baseCtx,
             type: 'tool_call_start',
@@ -351,7 +349,11 @@ function registerIpcHandlers(): void {
   // path documented in done-verify.ts.
   const sharedRuntimeVerifier = makeRuntimeVerifier();
   ipcMain.handle('done:verify:v1', async (_e, raw: unknown) => {
-    if (typeof raw !== 'object' || raw === null || typeof (raw as { artifact?: unknown }).artifact !== 'string') {
+    if (
+      typeof raw !== 'object' ||
+      raw === null ||
+      typeof (raw as { artifact?: unknown }).artifact !== 'string'
+    ) {
       throw new CodesignError('done:verify:v1 expects { artifact: string }', 'IPC_BAD_INPUT');
     }
     const errors = await sharedRuntimeVerifier((raw as { artifact: string }).artifact);

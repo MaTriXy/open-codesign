@@ -45,9 +45,7 @@ export function CanvasTabBar() {
               title={title}
               className="flex items-center gap-[var(--space-1_5)] focus:outline-none"
             >
-              {isFiles ? (
-                <FolderOpen className="w-3.5 h-3.5 opacity-80" aria-hidden />
-              ) : null}
+              {isFiles ? <FolderOpen className="w-3.5 h-3.5 opacity-80" aria-hidden /> : null}
               <span
                 className="truncate max-w-[220px]"
                 style={isFiles ? undefined : { fontFamily: 'var(--font-mono)' }}

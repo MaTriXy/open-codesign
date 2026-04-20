@@ -1,13 +1,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import {
   CodesignError,
   type Config,
   parseConfigFlexible,
   toPersistedV3,
 } from '@open-codesign/shared';
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 
 const XDG_DEFAULT = join(homedir(), '.config', 'open-codesign');
 

@@ -30,7 +30,12 @@ export function Wordmark({ badge, size = 'md' }: WordmarkProps) {
       <span className="flex flex-col">
         <span
           className="leading-none"
-          style={{ fontFamily: 'var(--font-display)', fontSize, fontWeight: 600, letterSpacing: '-0.03em' }}
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize,
+            fontWeight: 600,
+            letterSpacing: '-0.03em',
+          }}
         >
           <span style={{ color: '#142d4c' }}>Open </span>
           <span style={{ color: '#b5441a' }}>CoDesign</span>

@@ -12,7 +12,6 @@ const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 const HUB_TABS: HubTab[] = ['recent', 'your', 'examples', 'designSystems'];
 
-
 export function TopBar() {
   const t = useT();
   const setView = useCodesignStore((s) => s.setView);
@@ -74,9 +73,7 @@ export function TopBar() {
                     fontFamily: 'var(--font-display)',
                     fontSize: '19px',
                     fontWeight: active ? 500 : 400,
-                    color: active
-                      ? 'var(--color-text-primary)'
-                      : 'var(--color-text-muted)',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                     letterSpacing: '-0.015em',
                   }}
                   onMouseEnter={(e) => {
@@ -132,17 +129,10 @@ export function TopBar() {
 
       <div className="flex items-center gap-[var(--space-3)]" style={noDragStyle}>
         <ModelSwitcher variant="topbar" />
-        <div
-          className="flex items-center gap-[2px]"
-          style={{ marginLeft: 'var(--space-1)' }}
-        >
+        <div className="flex items-center gap-[2px]" style={{ marginLeft: 'var(--space-1)' }}>
           <LanguageToggle />
           <ThemeToggle />
-          <IconButton
-            label={t('settings.title')}
-            size="md"
-            onClick={() => setView('settings')}
-          >
+          <IconButton label={t('settings.title')} size="md" onClick={() => setView('settings')}>
             <SettingsIcon className="w-[18px] h-[18px]" />
           </IconButton>
         </div>

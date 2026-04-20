@@ -9,13 +9,19 @@
  * EDITMODE block at the top so the host can render a tweak panel.
  */
 
-import iphoneJsx from './iphone.jsx?raw';
-import ipadJsx from './ipad.jsx?raw';
-import watchJsx from './watch.jsx?raw';
 import androidJsx from './android.jsx?raw';
+import ipadJsx from './ipad.jsx?raw';
+import iphoneJsx from './iphone.jsx?raw';
 import macosSafariJsx from './macos-safari.jsx?raw';
+import watchJsx from './watch.jsx?raw';
 
-const FRAME_FILES = ['iphone.jsx', 'ipad.jsx', 'watch.jsx', 'android.jsx', 'macos-safari.jsx'] as const;
+const FRAME_FILES = [
+  'iphone.jsx',
+  'ipad.jsx',
+  'watch.jsx',
+  'android.jsx',
+  'macos-safari.jsx',
+] as const;
 
 export type FrameName = (typeof FRAME_FILES)[number];
 

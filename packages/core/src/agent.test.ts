@@ -369,7 +369,13 @@ describe('FRAME_TEMPLATES — device frame starter assets', () => {
   it('exposes iphone, ipad, watch, android, and macos-safari frames as JSX modules with EDITMODE markers', async () => {
     const { FRAME_TEMPLATES } = await import('./frames/index.js');
     const names = FRAME_TEMPLATES.map(([n]) => n);
-    expect(names).toEqual(['iphone.jsx', 'ipad.jsx', 'watch.jsx', 'android.jsx', 'macos-safari.jsx']);
+    expect(names).toEqual([
+      'iphone.jsx',
+      'ipad.jsx',
+      'watch.jsx',
+      'android.jsx',
+      'macos-safari.jsx',
+    ]);
     for (const [name, jsx] of FRAME_TEMPLATES) {
       expect(jsx.length, `${name} should be non-empty`).toBeGreaterThan(200);
       expect(jsx, `${name} must declare an EDITMODE block`).toMatch(/EDITMODE-BEGIN/);

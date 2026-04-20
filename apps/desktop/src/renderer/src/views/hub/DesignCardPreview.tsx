@@ -1,12 +1,16 @@
-import type { Design } from '@open-codesign/shared';
 import { buildSrcdoc } from '@open-codesign/runtime';
+import type { Design } from '@open-codesign/shared';
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 // Lightweight JSX detection — mirrors runtime's isJsxArtifact without importing it.
 function needsJsxRuntime(source: string): boolean {
   if (/<!doctype/i.test(source) || /<html[^>]*>/i.test(source)) return false;
-  return /EDITMODE-BEGIN/.test(source) || /ReactDOM\.createRoot\s*\(/.test(source) || /^\s*function\s+App\s*\(/m.test(source);
+  return (
+    /EDITMODE-BEGIN/.test(source) ||
+    /ReactDOM\.createRoot\s*\(/.test(source) ||
+    /^\s*function\s+App\s*\(/m.test(source)
+  );
 }
 
 export interface DesignCardPreviewProps {

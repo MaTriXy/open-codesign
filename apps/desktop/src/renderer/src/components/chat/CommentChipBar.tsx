@@ -28,7 +28,10 @@ export function CommentChipBar() {
 
   return (
     <div className="flex flex-wrap items-center gap-[var(--space-1_5)]">
-      <ul className="flex flex-wrap gap-[var(--space-1_5)] flex-1 min-w-0" aria-label={t('commentChip.empty')}>
+      <ul
+        className="flex flex-wrap gap-[var(--space-1_5)] flex-1 min-w-0"
+        aria-label={t('commentChip.empty')}
+      >
         {pending.map((c) => (
           <li
             key={c.id}

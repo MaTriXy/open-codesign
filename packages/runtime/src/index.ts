@@ -92,12 +92,23 @@ export function extractAndUpgradeArtifact(source: string): string {
 /**
  * Build a complete srcdoc HTML string for the preview iframe. Strips any
  * stray CSP meta tags from the agent payload, then wraps it as JSX.
+ *
+ * Legacy-HTML compatibility: snapshots created before the JSX-only switchover
+ * stored raw HTML documents (starting with `<!doctype` or `<html>`). Feeding
+ * these through `wrapJsxAsSrcdoc` produces "Unexpected token" errors because
+ * Babel tries to parse the HTML as JSX. Detect and pass them through verbatim.
  */
 export function buildSrcdoc(userSource: string): string {
   const stripped = userSource.replace(
     /<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/gi,
     '',
   );
+  // Already-wrapped srcdoc (round-trip safe) — return as-is.
   if (stripped.includes(JSX_TEMPLATE_BEGIN)) return stripped;
+  // Legacy HTML document (pre-JSX-only-switchover snapshots) — render as-is.
+  const head = stripped.trimStart().slice(0, 2048).toLowerCase();
+  if (head.startsWith('<!doctype') || head.startsWith('<html')) {
+    return stripped;
+  }
   return wrapJsxAsSrcdoc(stripped);
 }

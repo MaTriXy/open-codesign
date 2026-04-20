@@ -152,7 +152,10 @@ export function DesignGrid({ designs, emptyLabel, prefixTile }: DesignGridProps)
           id="design-card-menu"
           role="menu"
           className="fixed z-50 min-w-[160px] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-elevated)] py-[var(--space-1)]"
-          style={{ left: Math.min(pos.x, window.innerWidth - 180), top: Math.min(pos.y, window.innerHeight - 100) }}
+          style={{
+            left: Math.min(pos.x, window.innerWidth - 180),
+            top: Math.min(pos.y, window.innerHeight - 100),
+          }}
         >
           <button
             type="button"

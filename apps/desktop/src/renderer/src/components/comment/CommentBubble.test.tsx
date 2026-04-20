@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommentBubble, QUICK_ACTION_TEXT, type CommentBubbleProps } from './CommentBubble';
+import { CommentBubble, type CommentBubbleProps, QUICK_ACTION_TEXT } from './CommentBubble';
 
 describe('CommentBubble module', () => {
   it('exports the component', () => {

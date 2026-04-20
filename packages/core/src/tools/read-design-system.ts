@@ -23,7 +23,7 @@ export function makeReadDesignSystemTool(
     name: 'read_design_system',
     label: 'Read design system',
     description:
-      'Return the extracted tokens from the project\'s linked design system ' +
+      "Return the extracted tokens from the project's linked design system " +
       '(colors, fonts, spacing, radii, shadows). Call this when you need to ' +
       'match brand palette or typography. Returns an empty result if no ' +
       'design system is linked.',
@@ -41,10 +41,7 @@ export function makeReadDesignSystemTool(
           details: { available: false },
         };
       }
-      const lines = [
-        `# ${ds.summary}`,
-        `Root path: ${ds.rootPath}`,
-      ];
+      const lines = [`# ${ds.summary}`, `Root path: ${ds.rootPath}`];
       if (ds.colors.length > 0) lines.push(`\n## Colors\n${ds.colors.join(', ')}`);
       if (ds.fonts.length > 0) lines.push(`\n## Fonts\n${ds.fonts.join(', ')}`);
       if (ds.spacing.length > 0) lines.push(`\n## Spacing\n${ds.spacing.join(', ')}`);

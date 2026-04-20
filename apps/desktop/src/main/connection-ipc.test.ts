@@ -482,9 +482,7 @@ describe('models:v1:list-for-provider input validation', () => {
   // exercise the input-validation layer that runs before credential lookup.
   // We reuse a thin helper that mirrors the handler's guard clauses.
 
-  function validateListForProviderInput(
-    raw: unknown,
-  ): ModelsListResponse | null {
+  function validateListForProviderInput(raw: unknown): ModelsListResponse | null {
     if (typeof raw !== 'string' || raw.length === 0) {
       return {
         ok: false,
@@ -499,27 +497,27 @@ describe('models:v1:list-for-provider input validation', () => {
   it('rejects non-string input (number)', () => {
     const result = validateListForProviderInput(42);
     expect(result).not.toBeNull();
-    expect(result!.ok).toBe(false);
-    if (!result!.ok) expect(result!.code).toBe('IPC_BAD_INPUT');
+    expect(result?.ok).toBe(false);
+    if (!result?.ok) expect(result?.code).toBe('IPC_BAD_INPUT');
   });
 
   it('rejects empty string', () => {
     const result = validateListForProviderInput('');
     expect(result).not.toBeNull();
-    expect(result!.ok).toBe(false);
-    if (!result!.ok) expect(result!.code).toBe('IPC_BAD_INPUT');
+    expect(result?.ok).toBe(false);
+    if (!result?.ok) expect(result?.code).toBe('IPC_BAD_INPUT');
   });
 
   it('rejects null', () => {
     const result = validateListForProviderInput(null);
     expect(result).not.toBeNull();
-    expect(result!.ok).toBe(false);
+    expect(result?.ok).toBe(false);
   });
 
   it('rejects undefined', () => {
     const result = validateListForProviderInput(undefined);
     expect(result).not.toBeNull();
-    expect(result!.ok).toBe(false);
+    expect(result?.ok).toBe(false);
   });
 
   it('accepts a valid provider id string', () => {

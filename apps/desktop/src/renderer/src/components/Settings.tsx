@@ -353,8 +353,8 @@ function ProviderCard({
       </div>
 
       {row.isActive && !hasError && config !== null && (
-          <ActiveModelSelector config={config} provider={row.provider} />
-        )}
+        <ActiveModelSelector config={config} provider={row.provider} />
+      )}
     </div>
   );
 }
@@ -601,10 +601,7 @@ function ModelsTab() {
     const sl = isSupportedOnboardingProvider(provider) ? SHORTLIST[provider] : null;
     const currentRow = rows.find((r) => r.provider === provider);
     const defaultModel =
-      currentRow?.defaultModel ||
-      sl?.defaultPrimary ||
-      config?.modelPrimary ||
-      '';
+      currentRow?.defaultModel || sl?.defaultPrimary || config?.modelPrimary || '';
     const label = sl?.label ?? currentRow?.label ?? provider;
     if (defaultModel.length === 0) {
       pushToast({

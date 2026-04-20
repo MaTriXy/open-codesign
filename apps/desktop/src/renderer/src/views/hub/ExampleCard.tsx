@@ -3,6 +3,7 @@ import type { ExampleCategory, LocalizedExample } from '@open-codesign/templates
 import {
   FileText,
   LayoutDashboard,
+  type LucideIcon,
   Mail,
   Megaphone,
   MonitorSmartphone,
@@ -10,7 +11,6 @@ import {
   Presentation,
   Smartphone,
   Sparkles,
-  type LucideIcon,
 } from 'lucide-react';
 
 export interface ExampleCardProps {

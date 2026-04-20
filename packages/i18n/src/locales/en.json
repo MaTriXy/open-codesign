@@ -622,6 +622,8 @@
       "deleteFailed": "Could not delete the design",
       "deleteBlockedGenerating": "Wait for generation to finish before deleting",
       "saveFailed": "Could not save the latest changes",
+      "snapshotSkipped": "Incomplete output kept unsaved",
+      "snapshotSkippedBody": "The agent's JSX is truncated (missing ReactDOM.createRoot or unbalanced braces). Previous good version preserved. Send the prompt again to retry.",
       "loadFailed": "Could not load your designs"
     }
   },

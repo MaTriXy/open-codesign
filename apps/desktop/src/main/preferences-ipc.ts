@@ -53,8 +53,7 @@ export async function readPersisted(): Promise<Preferences> {
   try {
     const raw = await readFile(file, 'utf8');
     const parsed = JSON.parse(raw) as Partial<PreferencesFile>;
-    const persistedSchema =
-      typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1;
+    const persistedSchema = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1;
     const rawTimeout =
       typeof parsed.generationTimeoutSec === 'number' && parsed.generationTimeoutSec > 0
         ? parsed.generationTimeoutSec

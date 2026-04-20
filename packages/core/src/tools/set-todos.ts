@@ -40,9 +40,10 @@ export function makeSetTodosTool(): AgentTool<typeof SetTodosParams, SetTodosDet
     parameters: SetTodosParams,
     async execute(_toolCallId, params): Promise<AgentToolResult<SetTodosDetails>> {
       const items = params.items ?? [];
-      const text = items.length === 0
-        ? 'Todo list cleared.'
-        : items.map((t) => `${t.checked ? '[x]' : '[ ]'} ${t.text}`).join('\n');
+      const text =
+        items.length === 0
+          ? 'Todo list cleared.'
+          : items.map((t) => `${t.checked ? '[x]' : '[ ]'} ${t.text}`).join('\n');
       return {
         content: [{ type: 'text', text }],
         details: { items },

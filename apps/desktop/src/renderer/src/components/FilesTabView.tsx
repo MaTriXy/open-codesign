@@ -50,7 +50,7 @@ export function FilesTabView() {
     );
   }
 
-  const selectedFile = selectedPath ? files.find((f) => f.path === selectedPath) ?? null : null;
+  const selectedFile = selectedPath ? (files.find((f) => f.path === selectedPath) ?? null) : null;
 
   return (
     <div className="flex h-full min-h-0">

@@ -415,6 +415,37 @@ function tr(key: string, options?: Record<string, unknown>): string {
 type SetState = StoreApi<CodesignState>['setState'];
 type GetState = StoreApi<CodesignState>['getState'];
 
+/**
+ * Quick sanity gate for artifact content before we overwrite the design's
+ * latest snapshot. Catches the dominant failure mode: an agent run that was
+ * interrupted mid-edit (context blowup, provider 400, autopolish crash, user
+ * cancel) leaves a truncated JSX file in the virtual FS — its tail is missing
+ * the `ReactDOM.createRoot(...).render(<App/>)` line and braces are wildly
+ * unbalanced. Persisting that as the new snapshot would blank the hub
+ * thumbnail and lose the previous good state. The check is intentionally
+ * tolerant (±2 on bracket count) so whitespace quirks in valid artifacts pass.
+ */
+function looksRunnableArtifact(src: string): boolean {
+  const trimmed = src.trim();
+  if (trimmed.length === 0) return false;
+  // HTML artifacts (legacy paste) don't need the JSX gate — accept anything
+  // that at least has an <html> or <body>.
+  if (/<html[\s>]/i.test(trimmed) || /<body[\s>]/i.test(trimmed)) return true;
+  // JSX contract: must end with a mount call. Without it the iframe renders
+  // nothing and the thumbnail stays blank.
+  if (!/ReactDOM\.createRoot\s*\([\s\S]*?\)\s*\.render\s*\(/.test(trimmed)) return false;
+  // Rough brace / paren balance. Not string-aware (that's overkill for a
+  // truncation gate) — the ±2 tolerance absorbs the usual legitimate drift
+  // inside template literals or comments.
+  const opens = (trimmed.match(/\{/g) ?? []).length;
+  const closes = (trimmed.match(/\}/g) ?? []).length;
+  if (Math.abs(opens - closes) > 2) return false;
+  const popens = (trimmed.match(/\(/g) ?? []).length;
+  const pcloses = (trimmed.match(/\)/g) ?? []).length;
+  if (Math.abs(popens - pcloses) > 2) return false;
+  return true;
+}
+
 function autoNameFromPrompt(prompt: string): string {
   const condensed = prompt.replace(/\s+/g, ' ').trim();
   if (condensed.length === 0) return 'Untitled design';
@@ -865,10 +896,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     // Skip polish if there was an error anywhere in the latest chain of
     // events after the most recent user message — same rationale.
     const lastUserIdx = designMessages.map((m) => m.kind).lastIndexOf('user');
-    if (
-      lastUserIdx >= 0 &&
-      designMessages.slice(lastUserIdx).some((m) => m.kind === 'error')
-    ) {
+    if (lastUserIdx >= 0 && designMessages.slice(lastUserIdx).some((m) => m.kind === 'error')) {
       return;
     }
     // Mark fired *before* sending so a race with a second agent_end in the
@@ -1847,6 +1875,20 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     if (state.currentDesignId !== designId) return;
     const html = state.previewHtml;
     if (!html || html.trim().length === 0) return;
+    // Guard against persisting truncated artifacts. When an agent run is
+    // interrupted mid-edit (context explosion, 400 response, cancel, crash),
+    // the virtual-FS has a partial JSX file that would overwrite the last
+    // good snapshot and render as a blank card in the hub. Require a
+    // ReactDOM.createRoot mount call + roughly balanced braces; if missing,
+    // keep the last good snapshot and warn the user.
+    if (!looksRunnableArtifact(html)) {
+      get().pushToast({
+        variant: 'info',
+        title: tr('projects.notifications.snapshotSkipped'),
+        description: tr('projects.notifications.snapshotSkippedBody'),
+      });
+      return;
+    }
     // The "prompt" associated with this snapshot is the most recent user
     // message in the chat — that is what the agent was answering.
     const lastUser = [...state.chatMessages].reverse().find((m) => m.kind === 'user');

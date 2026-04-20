@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
+import { describe, expect, it } from 'vitest';
 import { buildTransformContext } from './context-prune.js';
 
 function userMsg(text: string): AgentMessage {
@@ -86,9 +86,7 @@ describe('buildTransformContext — sliding-window compaction', () => {
     // Oldest round's toolResult must still carry the matching toolCallId so
     // the LLM can pair it with the assistant toolCall block.
     const first = out.find(
-      (m) =>
-        m.role === 'toolResult' &&
-        (m as { toolCallId?: string }).toolCallId === 'call-0',
+      (m) => m.role === 'toolResult' && (m as { toolCallId?: string }).toolCallId === 'call-0',
     ) as { toolCallId?: string; content: Array<{ text?: string }> } | undefined;
     expect(first).toBeDefined();
     expect(first?.toolCallId).toBe('call-0');

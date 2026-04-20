@@ -98,10 +98,7 @@ function parseAddInput(raw: unknown): CommentCreateInput {
   let scope: 'element' | 'global' = 'element';
   if (scopeRaw !== undefined) {
     if (scopeRaw !== 'element' && scopeRaw !== 'global') {
-      throw new CodesignError(
-        `${channel}: scope must be 'element' or 'global'`,
-        'IPC_BAD_INPUT',
-      );
+      throw new CodesignError(`${channel}: scope must be 'element' or 'global'`, 'IPC_BAD_INPUT');
     }
     scope = scopeRaw;
   }

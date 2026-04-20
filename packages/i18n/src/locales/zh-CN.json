@@ -622,6 +622,8 @@
       "deleteFailed": "无法删除设计",
       "deleteBlockedGenerating": "等当前生成完成后再删除",
       "saveFailed": "无法保存最新更改",
+      "snapshotSkipped": "此轮输出不完整",
+      "snapshotSkippedBody": "Agent 输出的 JSX 残缺（缺 ReactDOM.createRoot 或括号不配对），已保留上一个完整版本。再发一次 prompt 重试。",
       "loadFailed": "无法加载设计列表"
     }
   },

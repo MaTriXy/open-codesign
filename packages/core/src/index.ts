@@ -48,7 +48,12 @@ export {
   makeReadDesignSystemTool,
   type ReadDesignSystemDetails,
 } from './tools/read-design-system.js';
-export { makeDoneTool, type DoneDetails, type DoneError, type DoneRuntimeVerifier } from './tools/done.js';
+export {
+  makeDoneTool,
+  type DoneDetails,
+  type DoneError,
+  type DoneRuntimeVerifier,
+} from './tools/done.js';
 
 export interface AttachmentContext {
   name: string;
@@ -720,18 +725,14 @@ export async function generateTitle(input: GenerateTitleInput): Promise<string> 
     modelId: input.model.modelId,
   });
   try {
-    const result = await complete(
-      input.model,
-      messages,
-      {
-        apiKey: input.apiKey,
-        ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
-        ...(input.wire !== undefined ? { wire: input.wire } : {}),
-        ...(input.httpHeaders !== undefined ? { httpHeaders: input.httpHeaders } : {}),
-        ...(input.signal !== undefined ? { signal: input.signal } : {}),
-        maxTokens: 60,
-      },
-    );
+    const result = await complete(input.model, messages, {
+      apiKey: input.apiKey,
+      ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
+      ...(input.wire !== undefined ? { wire: input.wire } : {}),
+      ...(input.httpHeaders !== undefined ? { httpHeaders: input.httpHeaders } : {}),
+      ...(input.signal !== undefined ? { signal: input.signal } : {}),
+      maxTokens: 60,
+    });
     log.info('[title] step=send_request.ok', { ms: Date.now() - started });
     const title = sanitizeTitle(result.content);
     if (title.length === 0) {

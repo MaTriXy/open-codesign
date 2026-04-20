@@ -333,9 +333,7 @@ describe('coerceUsageSnapshot', () => {
 // Simulate the escape handler logic from App.tsx: in settings view, ESC goes
 // back to previousView; in workspace, ESC is no longer a view-jump (only
 // closes local overlays, none of which are exercised here).
-function pressEscape(
-  view: ReturnType<typeof useCodesignStore.getState>['view'],
-): void {
+function pressEscape(view: ReturnType<typeof useCodesignStore.getState>['view']): void {
   const store = useCodesignStore.getState();
   if (view === 'settings') {
     const prev = store.previousView;
@@ -787,4 +785,3 @@ describe('useCodesignStore interaction mode', () => {
     expect(s.selectedElement).toBeNull();
   });
 });
-

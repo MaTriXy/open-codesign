@@ -2,11 +2,11 @@ import { useT } from '@open-codesign/i18n';
 import { useEffect, useRef } from 'react';
 import { useAgentStream } from '../hooks/useAgentStream';
 import { useCodesignStore } from '../store';
+import { ModelSwitcher } from './ModelSwitcher';
 import { ChatMessageList } from './chat/ChatMessageList';
 import { CommentChipBar } from './chat/CommentChipBar';
 import { EmptyState } from './chat/EmptyState';
 import { PromptInput, type PromptInputHandle } from './chat/PromptInput';
-import { ModelSwitcher } from './ModelSwitcher';
 
 export interface SidebarProps {
   prompt: string;
@@ -83,46 +83,46 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
       <div className="h-[var(--space-3)] shrink-0" />
 
       <>
-          {/* Chat scroll area */}
-          <div className="flex-1 overflow-y-auto px-[var(--space-4)] py-[var(--space-4)]">
-            <ChatMessageList
-              messages={chatMessages}
-              loading={!chatLoaded}
-              isGenerating={isGenerating}
-              pendingToolCalls={pendingToolCalls}
-              streamingText={
-                streamingAssistantText && streamingAssistantText.designId === currentDesignId
-                  ? streamingAssistantText.text
-                  : null
-              }
-              empty={<EmptyState onPickStarter={handlePickStarter} />}
-            />
-          </div>
+        {/* Chat scroll area */}
+        <div className="flex-1 overflow-y-auto px-[var(--space-4)] py-[var(--space-4)]">
+          <ChatMessageList
+            messages={chatMessages}
+            loading={!chatLoaded}
+            isGenerating={isGenerating}
+            pendingToolCalls={pendingToolCalls}
+            streamingText={
+              streamingAssistantText && streamingAssistantText.designId === currentDesignId
+                ? streamingAssistantText.text
+                : null
+            }
+            empty={<EmptyState onPickStarter={handlePickStarter} />}
+          />
+        </div>
 
-          {/* Skill chips + prompt input + model/tokens line */}
-          <div className="border-t border-[var(--color-border-subtle)] px-[var(--space-4)] pt-[var(--space-3)] pb-[var(--space-3)] space-y-[10px] bg-[var(--color-background-secondary)]">
-            <CommentChipBar />
-            <PromptInput
-              ref={promptInputRef}
-              prompt={prompt}
-              setPrompt={setPrompt}
-              onSubmit={onSubmit}
-              onCancel={cancelGeneration}
-              isGenerating={isGenerating}
-            />
-            <div className="flex items-center justify-between gap-[var(--space-2)] px-[2px]">
-              <ModelSwitcher variant="sidebar" />
-              {lastTokens !== null ? (
-                <span
-                  className="shrink-0 tabular-nums text-[10.5px] text-[var(--color-text-muted)]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {t('sidebar.chat.tokensLine', { count: lastTokens })}
-                </span>
-              ) : null}
-            </div>
+        {/* Skill chips + prompt input + model/tokens line */}
+        <div className="border-t border-[var(--color-border-subtle)] px-[var(--space-4)] pt-[var(--space-3)] pb-[var(--space-3)] space-y-[10px] bg-[var(--color-background-secondary)]">
+          <CommentChipBar />
+          <PromptInput
+            ref={promptInputRef}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            onSubmit={onSubmit}
+            onCancel={cancelGeneration}
+            isGenerating={isGenerating}
+          />
+          <div className="flex items-center justify-between gap-[var(--space-2)] px-[2px]">
+            <ModelSwitcher variant="sidebar" />
+            {lastTokens !== null ? (
+              <span
+                className="shrink-0 tabular-nums text-[10.5px] text-[var(--color-text-muted)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {t('sidebar.chat.tokensLine', { count: lastTokens })}
+              </span>
+            ) : null}
           </div>
-        </>
+        </div>
+      </>
     </aside>
   );
 }

@@ -62,7 +62,6 @@ export function CommentsPanel() {
 
   return createPortal(
     <aside
-      role="complementary"
       aria-label={t('comments.panel.title', { count: visibleComments.length })}
       style={{
         transform: visible ? 'translateX(0)' : 'translateX(calc(100% + 24px))',

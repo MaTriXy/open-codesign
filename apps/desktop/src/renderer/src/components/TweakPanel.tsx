@@ -361,6 +361,104 @@ export function TweakPanel({
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // Drag-to-reposition state. Null = default anchored position (top-right).
+  // Once dragged, the panel sticks wherever the user left it (persisted to
+  // localStorage so it survives reloads).
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(() => {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('codesign.tweakPanel.pos');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.left === 'number' && typeof parsed?.top === 'number') return parsed;
+    } catch {
+      /* noop */
+    }
+    return null;
+  });
+  const dragState = useRef<{
+    startX: number;
+    startY: number;
+    baseLeft: number;
+    baseTop: number;
+  } | null>(null);
+  /** Sticky flag set the moment a drag starts — survives until the next click
+   *  has been evaluated. Prevents the collapsed pill from auto-opening when
+   *  the user releases after a drag. */
+  const justDraggedRef = useRef(false);
+
+  function savePos(next: { left: number; top: number }) {
+    setPos(next);
+    try {
+      localStorage.setItem('codesign.tweakPanel.pos', JSON.stringify(next));
+    } catch {
+      /* noop */
+    }
+  }
+
+  function onDragStart(e: React.MouseEvent) {
+    const el = panelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // Clamp to the preview pane (the TweakPanel's offsetParent), NOT the
+    // viewport — the panel should never slide over the sidebar or top bar.
+    const parent = el.offsetParent as HTMLElement | null;
+    const bounds = parent
+      ? parent.getBoundingClientRect()
+      : ({ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight } as DOMRect);
+
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseLeft: rect.left,
+      baseTop: rect.top,
+    };
+    e.preventDefault();
+
+    let moved = false;
+    const THRESHOLD = 4;
+
+    const onMove = (ev: MouseEvent) => {
+      const st = dragState.current;
+      if (!st) return;
+      const dx = ev.clientX - st.startX;
+      const dy = ev.clientY - st.startY;
+      if (!moved) {
+        if (Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
+        moved = true;
+        justDraggedRef.current = true;
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+      }
+      const nextLeft = Math.max(
+        bounds.left + 8,
+        Math.min(bounds.right - rect.width - 8, st.baseLeft + dx),
+      );
+      const nextTop = Math.max(
+        bounds.top + 8,
+        Math.min(bounds.bottom - rect.height - 8, st.baseTop + dy),
+      );
+      setPos({ left: nextLeft, top: nextTop });
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      dragState.current = null;
+      if (moved) {
+        setPos((p) => {
+          if (p) savePos(p);
+          return p;
+        });
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
   const block: EditmodeBlock | null = useMemo(
     () => (previewHtml ? parseEditmodeBlock(previewHtml) : null),
     [previewHtml],
@@ -479,14 +577,22 @@ export function TweakPanel({
   const countBadge = hasTokens ? String(entries.length) : '—';
 
   return (
-    <div ref={panelRef} className="absolute right-[var(--space-5)] top-[var(--space-5)] z-20">
+    <div
+      ref={panelRef}
+      className={pos ? 'fixed z-20' : 'absolute right-[var(--space-5)] top-[var(--space-5)] z-20'}
+      style={pos ? { left: pos.left, top: pos.top } : undefined}
+    >
       {open ? (
         <div
           aria-label={titleText}
           className="flex w-[280px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-elevated)] backdrop-blur"
         >
           <div className="flex items-center justify-between gap-[var(--space-2)] border-b border-[var(--color-border-subtle)] px-[var(--space-3)] py-[var(--space-2)]">
-            <div className="flex min-w-0 items-center gap-[var(--space-2)]">
+            <div
+              className="flex min-w-0 flex-1 items-center gap-[var(--space-2)] cursor-grab active:cursor-grabbing select-none"
+              onMouseDown={onDragStart}
+              title="Drag to move"
+            >
               <SlidersHorizontal
                 className="h-[14px] w-[14px] text-[var(--color-accent)]"
                 aria-hidden="true"
@@ -554,9 +660,17 @@ export function TweakPanel({
       ) : (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onMouseDown={onDragStart}
+          onClick={(e) => {
+            if (justDraggedRef.current) {
+              justDraggedRef.current = false;
+              e.preventDefault();
+              return;
+            }
+            setOpen(true);
+          }}
           aria-label={openLabel}
-          className="inline-flex h-[28px] items-center gap-[var(--space-1_5)] rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] text-[12px] text-[var(--color-text-secondary)] shadow-[var(--shadow-soft)] backdrop-blur transition-[background-color,color,transform] duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] active:scale-[var(--scale-press-down)]"
+          className="inline-flex h-[28px] cursor-grab items-center gap-[var(--space-1_5)] rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] text-[12px] text-[var(--color-text-secondary)] shadow-[var(--shadow-soft)] backdrop-blur transition-[background-color,color,transform] duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] active:scale-[var(--scale-press-down)] active:cursor-grabbing"
         >
           <SlidersHorizontal className="h-[13px] w-[13px]" aria-hidden="true" />
           <span>{titleText}</span>

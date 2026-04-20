@@ -22,25 +22,27 @@ export interface ReadUrlDetails {
 }
 
 function stripHtmlToText(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-    // Preserve paragraph/heading breaks as newlines so the model can see
-    // structure without real block-level markup.
-    .replace(/<\/(p|div|section|article|header|footer|li|h[1-6]|br)\s*>/gi, '\n')
-    .replace(/<br\s*\/?>(?!\n)/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+      // Preserve paragraph/heading breaks as newlines so the model can see
+      // structure without real block-level markup.
+      .replace(/<\/(p|div|section|article|header|footer|li|h[1-6]|br)\s*>/gi, '\n')
+      .replace(/<br\s*\/?>(?!\n)/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 export function makeReadUrlTool(): AgentTool<typeof ReadUrlParams, ReadUrlDetails> {

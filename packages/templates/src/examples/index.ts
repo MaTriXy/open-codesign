@@ -15,7 +15,10 @@ import { type Locale, availableLocales, normalizeLocale } from '@open-codesign/i
 import { enExamples } from './locales/en';
 import { zhCNExamples } from './locales/zh-CN';
 import {
+  thumbBlog,
+  thumbCalendar,
   thumbCaseStudy,
+  thumbChat,
   thumbCosmic,
   thumbDashboard,
   thumbEmail,
@@ -23,11 +26,8 @@ import {
   thumbMobile,
   thumbOrganic,
   thumbPitchSlide,
-  thumbPricing,
-  thumbBlog,
-  thumbCalendar,
-  thumbChat,
   thumbPortfolio,
+  thumbPricing,
   thumbReceipt,
   thumbSettings,
 } from './thumbnails';

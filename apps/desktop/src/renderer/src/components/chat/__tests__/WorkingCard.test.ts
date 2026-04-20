@@ -2,7 +2,9 @@ import type { ChatToolCallPayload } from '@open-codesign/shared';
 import { describe, expect, it } from 'vitest';
 import { buildRows } from '../WorkingCard';
 
-function call(p: Partial<ChatToolCallPayload> & Pick<ChatToolCallPayload, 'toolName'>): ChatToolCallPayload {
+function call(
+  p: Partial<ChatToolCallPayload> & Pick<ChatToolCallPayload, 'toolName'>,
+): ChatToolCallPayload {
   return {
     args: {},
     status: 'done',

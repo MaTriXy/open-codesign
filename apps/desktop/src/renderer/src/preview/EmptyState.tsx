@@ -14,14 +14,54 @@ interface Starter {
 }
 
 const STARTERS: Starter[] = [
-  { labelKey: 'emptyState.starters.landing', promptKey: 'starterPrompts.landing', descKey: 'emptyState.starterDesc.landing', accent: '#b5441a' },
-  { labelKey: 'emptyState.starters.dashboard', promptKey: 'starterPrompts.dashboard', descKey: 'emptyState.starterDesc.dashboard', accent: '#1a7a6d' },
-  { labelKey: 'emptyState.starters.mobile', promptKey: 'starterPrompts.mobile', descKey: 'emptyState.starterDesc.mobile', accent: '#3b6caa' },
-  { labelKey: 'emptyState.starters.pitch', promptKey: 'starterPrompts.pitch', descKey: 'emptyState.starterDesc.pitch', accent: '#8b5e3c' },
-  { labelKey: 'emptyState.starters.email', promptKey: 'starterPrompts.email', descKey: 'emptyState.starterDesc.email', accent: '#6b4c9a' },
-  { labelKey: 'emptyState.starters.portfolio', promptKey: 'starterPrompts.portfolio', descKey: 'emptyState.starterDesc.portfolio', accent: '#2d6a4f' },
-  { labelKey: 'emptyState.starters.casestudy', promptKey: 'starterPrompts.casestudy', descKey: 'emptyState.starterDesc.casestudy', accent: '#142d4c' },
-  { labelKey: 'emptyState.starters.animation', promptKey: 'starterPrompts.animation', descKey: 'emptyState.starterDesc.animation', accent: '#a0522d' },
+  {
+    labelKey: 'emptyState.starters.landing',
+    promptKey: 'starterPrompts.landing',
+    descKey: 'emptyState.starterDesc.landing',
+    accent: '#b5441a',
+  },
+  {
+    labelKey: 'emptyState.starters.dashboard',
+    promptKey: 'starterPrompts.dashboard',
+    descKey: 'emptyState.starterDesc.dashboard',
+    accent: '#1a7a6d',
+  },
+  {
+    labelKey: 'emptyState.starters.mobile',
+    promptKey: 'starterPrompts.mobile',
+    descKey: 'emptyState.starterDesc.mobile',
+    accent: '#3b6caa',
+  },
+  {
+    labelKey: 'emptyState.starters.pitch',
+    promptKey: 'starterPrompts.pitch',
+    descKey: 'emptyState.starterDesc.pitch',
+    accent: '#8b5e3c',
+  },
+  {
+    labelKey: 'emptyState.starters.email',
+    promptKey: 'starterPrompts.email',
+    descKey: 'emptyState.starterDesc.email',
+    accent: '#6b4c9a',
+  },
+  {
+    labelKey: 'emptyState.starters.portfolio',
+    promptKey: 'starterPrompts.portfolio',
+    descKey: 'emptyState.starterDesc.portfolio',
+    accent: '#2d6a4f',
+  },
+  {
+    labelKey: 'emptyState.starters.casestudy',
+    promptKey: 'starterPrompts.casestudy',
+    descKey: 'emptyState.starterDesc.casestudy',
+    accent: '#142d4c',
+  },
+  {
+    labelKey: 'emptyState.starters.animation',
+    promptKey: 'starterPrompts.animation',
+    descKey: 'emptyState.starterDesc.animation',
+    accent: '#a0522d',
+  },
 ];
 
 export function EmptyState({ onPickStarter }: EmptyStateProps) {
@@ -30,7 +70,6 @@ export function EmptyState({ onPickStarter }: EmptyStateProps) {
   return (
     <div className="h-full flex flex-col items-center justify-center overflow-y-auto select-none px-[var(--space-4)] py-[var(--space-8)]">
       <div className="w-full max-w-[760px] px-[var(--space-8)] flex flex-col items-center my-auto">
-
         {/* ── Logo with text ── */}
         <div className="flex flex-col items-center mb-[12px]">
           <img

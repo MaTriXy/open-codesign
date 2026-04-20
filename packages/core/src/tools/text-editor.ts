@@ -36,8 +36,10 @@ const TextEditorParams = Type.Object({
   insert_line: Type.Optional(Type.Number()),
   /** Optional `[startLine, endLine]` (1-indexed, inclusive) to narrow a view
    *  to a specific range instead of dumping the whole file. Either bound may
-   *  be -1 to mean "end of file". Only valid with `command: 'view'`. */
-  view_range: Type.Optional(Type.Tuple([Type.Number(), Type.Number()])),
+   *  be -1 to mean "end of file". Only valid with `command: 'view'`. Declared
+   *  as a fixed-length number array (min/max = 2) because `Type.Tuple` emits
+   *  legacy `items: [...]` which Anthropic's draft 2020-12 validator rejects. */
+  view_range: Type.Optional(Type.Array(Type.Number(), { minItems: 2, maxItems: 2 })),
 });
 
 export interface TextEditorDetails {
@@ -86,6 +88,9 @@ export function makeTextEditorTool(
             // prefer this after the first orientation read.
             if (params.view_range) {
               const [rawStart, rawEnd] = params.view_range;
+              if (typeof rawStart !== 'number' || typeof rawEnd !== 'number') {
+                throw new Error('view_range must be [startLine, endLine] as two numbers');
+              }
               const lines = file.content.split('\n');
               const start = Math.max(1, Math.floor(rawStart));
               const end = rawEnd === -1 ? lines.length : Math.max(start, Math.floor(rawEnd));

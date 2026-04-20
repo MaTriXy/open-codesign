@@ -7,18 +7,18 @@
  * skill (if any) applies before opening the file.
  */
 
-import slideDeckJsx from './slide-deck.jsx?raw';
-import dashboardJsx from './dashboard.jsx?raw';
-import landingPageJsx from './landing-page.jsx?raw';
-import chartSvgJsx from './chart-svg.jsx?raw';
-import glassmorphismJsx from './glassmorphism.jsx?raw';
-import editorialTypographyJsx from './editorial-typography.jsx?raw';
-import heroesJsx from './heroes.jsx?raw';
-import pricingJsx from './pricing.jsx?raw';
-import footersJsx from './footers.jsx?raw';
-import chatUiJsx from './chat-ui.jsx?raw';
-import dataTableJsx from './data-table.jsx?raw';
 import calendarJsx from './calendar.jsx?raw';
+import chartSvgJsx from './chart-svg.jsx?raw';
+import chatUiJsx from './chat-ui.jsx?raw';
+import dashboardJsx from './dashboard.jsx?raw';
+import dataTableJsx from './data-table.jsx?raw';
+import editorialTypographyJsx from './editorial-typography.jsx?raw';
+import footersJsx from './footers.jsx?raw';
+import glassmorphismJsx from './glassmorphism.jsx?raw';
+import heroesJsx from './heroes.jsx?raw';
+import landingPageJsx from './landing-page.jsx?raw';
+import pricingJsx from './pricing.jsx?raw';
+import slideDeckJsx from './slide-deck.jsx?raw';
 
 const DESIGN_SKILL_FILES = [
   'slide-deck.jsx',

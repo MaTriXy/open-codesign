@@ -132,7 +132,9 @@ export function ModelSwitcher({ variant }: ModelSwitcherProps) {
         <div
           role="listbox"
           className={`absolute z-50 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-card)] ${
-            isSidebar ? 'bottom-full mb-[var(--space-1)] left-0 min-w-[220px]' : 'top-full mt-[var(--space-1)] right-0 min-w-[260px]'
+            isSidebar
+              ? 'bottom-full mb-[var(--space-1)] left-0 min-w-[220px]'
+              : 'top-full mt-[var(--space-1)] right-0 min-w-[260px]'
           }`}
         >
           {/* Header — show which provider preset these models belong to */}
@@ -141,7 +143,9 @@ export function ModelSwitcher({ variant }: ModelSwitcherProps) {
               <p className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-muted)] font-medium">
                 {t('topbar.modelSwitcher.fromProvider', { defaultValue: 'Provider' })}
               </p>
-              <p className="text-[12px] text-[var(--color-text-primary)] mt-[2px]">{providerLabel}</p>
+              <p className="text-[12px] text-[var(--color-text-primary)] mt-[2px]">
+                {providerLabel}
+              </p>
             </div>
           )}
 
