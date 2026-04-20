@@ -307,6 +307,17 @@ async function collectSkills(
 // ---------------------------------------------------------------------------
 
 const AGENTIC_TOOL_GUIDANCE = [
+  '## OVERRIDE: artifact-wrapper rules do not apply in this mode',
+  '',
+  'The base system prompt (output-rules §"Artifact wrapper", workflow step 7 ',
+  '"Deliver — Output the artifact tag") instructs you to emit the design ',
+  'inside an `<artifact>...</artifact>` tag as assistant text. **Those rules ',
+  'are superseded by this section.** You have a `str_replace_based_edit_tool`; ',
+  'the file is written via that tool and extracted from the virtual filesystem ',
+  'by the host. Emitting the file contents as assistant text (either wrapped in ',
+  '`<artifact>`, a ```jsx fence, or raw) duplicates the design, doubles token ',
+  'cost, and blows past the LLM context limit on the next turn. Never do it.',
+  '',
   '## Output format (STRICT — no exceptions)',
   '',
   'Your artifact lives in `index.html` and follows this template — write it via',
@@ -355,13 +366,17 @@ const AGENTIC_TOOL_GUIDANCE = [
   '   4. One short prose line reflecting on what landed ("Three KPIs in place — the deltas use mono tnum so they line up.").',
   '   5. Tick the matching todo via `set_todos`.',
   '   That is **2 prose lines + 3 tool calls per turn**. Never batch multiple sections into a single str_replace; never run two str_replace tools in the same turn without a prose line in between.',
-  '4. **Polish passes — interactive depth.** At least ONE dedicated turn that ADDS interactive depth, not just cosmetic tweaks. Before `done`, make sure:',
-  '   (a) ≥2 state changes actually wire up (tab switch in a section, accordion open, favorite toggle, dropdown on avatar, drawer "See details", inline-edit click)',
-  '   (b) ≥1 list / grid / table has a believable empty state component defined (icon + reason + CTA), even if the current data is non-empty',
-  '   (c) all buttons / cards have hover + press feedback (`transition: transform 120ms var(--ease-out), background-color 120ms`; press = `scale(0.96)`; cards lift 2px on hover)',
-  '   (d) data is real-sounding, not Lorem: varied names, realistic numbers, relative dates ("3h ago")',
-  '   Add an explicit `Interactive polish` todo item in `set_todos` so the user sees it ticked.',
-  '5. **Final turn — summary.** 2–4 sentences of natural-language prose explaining 2–3 design decisions worth noting (e.g. "Used three distinct surface tones for depth"). Do NOT re-emit the file content; the host extracts it from the virtual fs.',
+  '4. **Polish passes — interactive depth (MANDATORY, ≥2 dedicated turns).** The first polish turn wires interactions; the second adds small-detail craft. These are NOT optional — if the user sees static pixels where they expected live UI, the artifact fails. Before `done` every item on this list must be TRUE:',
+  '   (a) **≥3 functional state changes** that a user can trigger and observe. Tab switch revealing a different view, accordion open/close, drawer slide-in, favorite/like toggle that persists, dropdown/menu expand, inline-edit, filter chip toggle, modal open. Pure hover effects do NOT count toward this three.',
+  '   (b) **≥1 animated view/page transition** if there is any nav (tabs, sidebar, bottom bar, breadcrumbs). 180–260ms, opacity + small translate. A hard cut between views is a failure.',
+  '   (c) **Every `<button>` and `<a>` does something.** No decorative buttons. Wire a state change, open a modal, fire a toast, or remove it. Login / Sign-up / CTA buttons on marketing pages may open a modal stub — still real, not dead.',
+  '   (d) **Uniform hover + press + focus** across ALL clickable elements. Required cadence: `transition: transform 120ms var(--ease-out), background-color 120ms, box-shadow 160ms;` hover lifts 2px; press = `scale(0.96)`; focus = 2px offset ring in accent color (never rely on browser default outline).',
+  '   (e) **≥3 small-detail "craft-surplus" touches** from the craft-directives catalog. Pick from: stateful counter/badge with pop animation, keyboard shortcut chip (`⌘K`, `/`, `esc`), inline-editable field, copy-to-clipboard with "Copied ✓" feedback, dismissible toast/banner, contextual tooltip with directional arrow, scroll-linked header shrink, relative-time tick ("3m ago"), segmented control with weighted active state, thoughtful empty-state SVG scene, expandable accordion inside a card, a deliberate visual rhythm-break section. Adding a gradient and shadow does NOT count.',
+  '   (f) **≥1 empty-state variant** visible or coded (icon + one-sentence reason + CTA) on a list/grid/table, even when current data is non-empty.',
+  '   (g) **Active nav indicator uses weight/shape, not color alone** — underline, inset background, side-accent bar, or pill — so color-blind users can tell where they are.',
+  '   (h) Data reads real: varied names, non-round numbers (87 %, $14.2k), relative dates ("3h ago", "yesterday"), not Lorem / 100 % / Jan 1 2020.',
+  '   Break this into TWO todo items: `Interactive wiring (state + transitions)` and `Craft surplus (small details)`. Tick them explicitly so the user can see both phases landed.',
+  '5. **Final turn — summary.** 2–4 sentences of natural-language prose explaining 2–3 design decisions worth noting (e.g. "Used three distinct surface tones for depth"). Do NOT re-emit the file content; the host extracts it from the virtual fs. Pasting the full file here wastes ~2M tokens on the next turn and will crash the request — this is a hard failure, not a style nit.',
   '',
   '### File output policy (STRICT)',
   "- Use `str_replace_based_edit_tool` for ALL file content. Do NOT emit `<artifact>` tags or fenced ```jsx/```html blocks containing the source in your prose — the host extracts the artifact from the virtual fs and any inline source spams the user's chat.",
@@ -714,7 +729,7 @@ export async function generateViaAgent(
     // Without this, assistant.toolCall.input + big view results grow O(N²)
     // in LLM-facing size across a long tool-using run and blow past 1 M
     // tokens. See context-prune.ts for the full strategy.
-    transformContext: buildTransformContext(),
+    transformContext: buildTransformContext(log),
     getApiKey: () => input.apiKey || 'open-codesign-keyless',
   });
 
