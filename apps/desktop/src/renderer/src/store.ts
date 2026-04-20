@@ -136,6 +136,8 @@ interface CodesignState {
   comments: CommentRow[];
   commentsLoaded: boolean;
   commentBubble: CommentBubbleAnchor | null;
+  /** Id of the snapshot currently visible in the preview — pins filter by it. */
+  currentSnapshotId: string | null;
 
   loadConfig: () => Promise<void>;
   completeOnboarding: (next: OnboardingState) => void;
@@ -828,6 +830,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   comments: [],
   commentsLoaded: false,
   commentBubble: null,
+  currentSnapshotId: null,
 
   clearIframeErrors() {
     set({ iframeErrors: [] });
@@ -1345,6 +1348,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         comments: [],
         commentsLoaded: false,
         commentBubble: null,
+        currentSnapshotId: null,
       });
       await get().loadDesigns();
       void get().loadChatForCurrentDesign();
@@ -1394,6 +1398,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         comments: [],
         commentsLoaded: false,
         commentBubble: null,
+        currentSnapshotId: null,
       });
       void get().loadChatForCurrentDesign();
       void get().loadCommentsForCurrentDesign();
@@ -1588,13 +1593,20 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     if (!window.codesign) return;
     const designId = get().currentDesignId;
     if (!designId) {
-      set({ comments: [], commentsLoaded: true });
+      set({ comments: [], commentsLoaded: true, currentSnapshotId: null });
       return;
     }
     try {
-      const rows = await window.codesign.comments.list(designId);
+      const [rows, snaps] = await Promise.all([
+        window.codesign.comments.list(designId),
+        window.codesign.snapshots.list(designId),
+      ]);
       if (get().currentDesignId !== designId) return;
-      set({ comments: rows, commentsLoaded: true });
+      set({
+        comments: rows,
+        commentsLoaded: true,
+        currentSnapshotId: snaps[0]?.id ?? null,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : tr('errors.unknown');
       console.warn('[open-codesign] loadCommentsForCurrentDesign failed:', msg);
@@ -1616,12 +1628,15 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     if (!designId) return null;
     // Pin comments to the current snapshot so pin overlays only surface for
     // the snapshot the user was viewing when the click happened.
-    let snapshotId: string | null = null;
-    try {
-      const snaps = await window.codesign.snapshots.list(designId);
-      snapshotId = snaps[0]?.id ?? null;
-    } catch (err) {
-      console.warn('[open-codesign] addComment: failed to look up latest snapshot', err);
+    let snapshotId: string | null = get().currentSnapshotId;
+    if (!snapshotId) {
+      try {
+        const snaps = await window.codesign.snapshots.list(designId);
+        snapshotId = snaps[0]?.id ?? null;
+        if (snapshotId) set({ currentSnapshotId: snapshotId });
+      } catch (err) {
+        console.warn('[open-codesign] addComment: failed to look up latest snapshot', err);
+      }
     }
     if (!snapshotId) {
       get().pushToast({
