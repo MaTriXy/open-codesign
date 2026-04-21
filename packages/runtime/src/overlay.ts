@@ -208,20 +208,13 @@ export const OVERLAY_SCRIPT = `(function() {
   }
   reattach();
   try {
-    if (window.__cs_reattach_interval) {
-      try { clearInterval(window.__cs_reattach_interval); } catch (_) {}
-      window.__cs_reattach_interval = 0;
-    }
+    try { clearInterval(window.__cs_reattach_interval); } catch (_) {}
     window.__cs_reattach_interval = setInterval(reattach, 200);
     if (!window.__cs_reattach_unload) {
       window.__cs_reattach_unload = true;
       var stopReattach = function() {
-        try {
-          if (window.__cs_reattach_interval) {
-            clearInterval(window.__cs_reattach_interval);
-            window.__cs_reattach_interval = 0;
-          }
-        } catch (_) {}
+        try { clearInterval(window.__cs_reattach_interval); } catch (_) {}
+        window.__cs_reattach_interval = 0;
       };
       try { window.addEventListener('pagehide', stopReattach, false); } catch (_) {}
       try { window.addEventListener('beforeunload', stopReattach, false); } catch (_) {}

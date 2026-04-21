@@ -1679,9 +1679,11 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     }
     try {
       await window.codesign.snapshots.softDeleteDesign(id);
-      const nextFired = new Set(get().autoPolishFired);
-      nextFired.delete(id);
-      set({ autoPolishFired: nextFired });
+      if (get().autoPolishFired.has(id)) {
+        const nextFired = new Set(get().autoPolishFired);
+        nextFired.delete(id);
+        set({ autoPolishFired: nextFired });
+      }
       const wasCurrent = get().currentDesignId === id;
       await get().loadDesigns();
       if (wasCurrent) {

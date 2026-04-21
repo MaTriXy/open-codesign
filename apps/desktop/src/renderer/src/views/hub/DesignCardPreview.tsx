@@ -56,8 +56,8 @@ function cacheKey(id: string, updatedAt: string): string {
   return `${id}:${updatedAt}`;
 }
 
-// Map iteration order = insertion order, so delete+set on hit refreshes recency
-// and evicting the first key drops the least-recently-used entry.
+// Map preserves insertion order, so delete+set on access makes the eviction
+// loop drop the least-recently-used key when the cache overflows.
 function memCacheTouch(key: string, value: string): void {
   memCache.delete(key);
   memCache.set(key, value);
@@ -71,8 +71,7 @@ function memCacheTouch(key: string, value: string): void {
 function readCache(key: string): string | null {
   const hit = memCache.get(key);
   if (hit !== undefined) {
-    memCache.delete(key);
-    memCache.set(key, hit);
+    memCacheTouch(key, hit);
     return hit;
   }
   if (typeof localStorage === 'undefined') return null;
