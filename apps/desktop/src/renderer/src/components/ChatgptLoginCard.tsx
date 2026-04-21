@@ -121,7 +121,7 @@ export function ChatgptLoginCard({ onStatusChange }: ChatgptLoginCardProps) {
         <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-[var(--color-accent)] text-[var(--color-accent)] bg-transparent text-[var(--font-size-badge)] font-medium leading-none">
             <Sparkles className="w-2.5 h-2.5" />
-            已登录 ChatGPT Plus
+            已登录 ChatGPT
           </span>
           {status.email !== null && status.email.length > 0 && (
             <span className="text-[var(--text-xs)] text-[var(--color-text-muted)] truncate">
