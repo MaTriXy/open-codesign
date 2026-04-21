@@ -60,6 +60,13 @@ export interface ProviderRow {
   error?: 'decryption_failed' | string;
 }
 
+export type ClaudeCodeUserType =
+  | 'has-api-key'
+  | 'oauth-only'
+  | 'local-proxy'
+  | 'remote-gateway'
+  | 'no-config';
+
 export interface ExternalConfigsDetection {
   codex?: {
     providers: ProviderEntry[];
@@ -68,10 +75,10 @@ export interface ExternalConfigsDetection {
     warnings: string[];
   };
   claudeCode?: {
-    provider: ProviderEntry | null;
-    apiKey: string | null;
-    activeModel: string | null;
-    warnings: string[];
+    userType: ClaudeCodeUserType;
+    baseUrl: string;
+    hasApiKey: boolean;
+    apiKeySource: 'settings-json' | 'shell-env' | 'none';
   };
 }
 

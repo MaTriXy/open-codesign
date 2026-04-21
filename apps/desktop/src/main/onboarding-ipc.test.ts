@@ -340,3 +340,179 @@ describe('config:v1:import-codex-config empty env handling', () => {
     );
   });
 });
+
+describe('config:v1:import-claude-code-config — user-type branching', () => {
+  it('throws CLAUDE_CODE_OAUTH_ONLY for oauth-only users without touching config', async () => {
+    const { readClaudeCodeSettings } = await import('./imports/claude-code-config');
+    const { writeConfig } = await import('./config');
+    vi.mocked(writeConfig).mockClear();
+    vi.mocked(readClaudeCodeSettings).mockResolvedValueOnce({
+      provider: null,
+      apiKey: null,
+      apiKeySource: 'none',
+      userType: 'oauth-only',
+      hasOAuthEvidence: true,
+      activeModel: null,
+      warnings: [],
+    });
+
+    const handler = handlers.get('config:v1:import-claude-code-config');
+    expect(handler).toBeDefined();
+    await expect(handler?.({} as unknown)).rejects.toThrow(/OAuth|CLAUDE_CODE_OAUTH_ONLY/);
+    expect(writeConfig).not.toHaveBeenCalled();
+  });
+
+  it('creates a Claude Code entry without flipping active when local-proxy has no key', async () => {
+    const { readClaudeCodeSettings } = await import('./imports/claude-code-config');
+    const { readConfig, writeConfig } = await import('./config');
+    vi.mocked(writeConfig).mockClear();
+
+    // Start with a working config so there's an active to preserve.
+    vi.mocked(readConfig).mockResolvedValueOnce({
+      version: 3,
+      activeProvider: 'anthropic',
+      activeModel: 'claude-sonnet-4-6',
+      secrets: { anthropic: { ciphertext: 'enc:sk-existing', mask: 'sk-e***ting' } },
+      providers: {
+        anthropic: {
+          id: 'anthropic',
+          name: 'Anthropic Claude',
+          builtin: true,
+          wire: 'anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          defaultModel: 'claude-sonnet-4-6',
+        },
+      },
+      provider: 'anthropic',
+      modelPrimary: 'claude-sonnet-4-6',
+      baseUrls: {},
+    });
+    const { loadConfigOnBoot } = await import('./onboarding-ipc');
+    await loadConfigOnBoot();
+
+    vi.mocked(readClaudeCodeSettings).mockResolvedValueOnce({
+      provider: {
+        id: 'claude-code-imported',
+        name: 'Claude Code (imported)',
+        builtin: false,
+        wire: 'anthropic',
+        baseUrl: 'http://localhost:8082',
+        defaultModel: 'claude-sonnet-4-6',
+        envKey: 'ANTHROPIC_AUTH_TOKEN',
+        reasoningLevel: 'medium',
+      },
+      apiKey: null,
+      apiKeySource: 'none',
+      userType: 'local-proxy',
+      hasOAuthEvidence: false,
+      activeModel: 'claude-sonnet-4-6',
+      warnings: [],
+    });
+
+    const handler = handlers.get('config:v1:import-claude-code-config');
+    const state = (await handler?.({} as unknown)) as { provider: string };
+    // Active provider stays on 'anthropic' because the new entry has no key.
+    expect(state.provider).toBe('anthropic');
+
+    const written = vi.mocked(writeConfig).mock.calls.at(-1)?.[0];
+    expect(written?.activeProvider).toBe('anthropic');
+    expect(written?.providers['claude-code-imported']).toBeDefined();
+    expect(written?.secrets['claude-code-imported']).toBeUndefined();
+  });
+
+  it('activates the imported provider when a key was extracted', async () => {
+    const { readClaudeCodeSettings } = await import('./imports/claude-code-config');
+    const { writeConfig } = await import('./config');
+    vi.mocked(writeConfig).mockClear();
+    vi.mocked(readClaudeCodeSettings).mockResolvedValueOnce({
+      provider: {
+        id: 'claude-code-imported',
+        name: 'Claude Code (imported)',
+        builtin: false,
+        wire: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        defaultModel: 'claude-sonnet-4-6',
+        envKey: 'ANTHROPIC_AUTH_TOKEN',
+        reasoningLevel: 'medium',
+      },
+      apiKey: 'sk-ant-from-settings',
+      apiKeySource: 'settings-json',
+      userType: 'has-api-key',
+      hasOAuthEvidence: false,
+      activeModel: 'claude-sonnet-4-6',
+      warnings: [],
+    });
+
+    const handler = handlers.get('config:v1:import-claude-code-config');
+    const state = (await handler?.({} as unknown)) as { provider: string; hasKey: boolean };
+    expect(state.provider).toBe('claude-code-imported');
+    expect(state.hasKey).toBe(true);
+
+    const written = vi.mocked(writeConfig).mock.calls.at(-1)?.[0];
+    expect(written?.activeProvider).toBe('claude-code-imported');
+    expect(written?.secrets['claude-code-imported']).toBeDefined();
+  });
+});
+
+describe('getApiKeyForProvider — envKey runtime fallback', () => {
+  it('returns process.env[entry.envKey] when secret is absent but env is set', async () => {
+    const ENV_NAME = 'OPEN_CODESIGN_TEST_ENV_FALLBACK_KEY';
+    process.env[ENV_NAME] = 'sk-from-shell-env';
+    const { readConfig } = await import('./config');
+    vi.mocked(readConfig).mockResolvedValueOnce({
+      version: 3,
+      activeProvider: 'fallback-test',
+      activeModel: 'x',
+      secrets: {},
+      providers: {
+        'fallback-test': {
+          id: 'fallback-test',
+          name: 'Env Fallback',
+          builtin: false,
+          wire: 'anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          defaultModel: 'x',
+          envKey: ENV_NAME,
+        },
+      },
+      provider: 'fallback-test',
+      modelPrimary: 'x',
+      baseUrls: {},
+    });
+    const { loadConfigOnBoot, getApiKeyForProvider } = await import('./onboarding-ipc');
+    await loadConfigOnBoot();
+
+    expect(getApiKeyForProvider('fallback-test')).toBe('sk-from-shell-env');
+    delete process.env[ENV_NAME];
+  });
+
+  it('throws PROVIDER_KEY_MISSING when both secret and envKey are absent', async () => {
+    const ENV_NAME = 'OPEN_CODESIGN_TEST_ENV_FALLBACK_EMPTY';
+    delete process.env[ENV_NAME];
+    const { readConfig } = await import('./config');
+    vi.mocked(readConfig).mockResolvedValueOnce({
+      version: 3,
+      activeProvider: 'no-key',
+      activeModel: 'x',
+      secrets: {},
+      providers: {
+        'no-key': {
+          id: 'no-key',
+          name: 'No Key',
+          builtin: false,
+          wire: 'anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          defaultModel: 'x',
+          envKey: ENV_NAME,
+        },
+      },
+      provider: 'no-key',
+      modelPrimary: 'x',
+      baseUrls: {},
+    });
+    const { loadConfigOnBoot, getApiKeyForProvider } = await import('./onboarding-ipc');
+    await loadConfigOnBoot();
+
+    expect(() => getApiKeyForProvider('no-key')).toThrow(/PROVIDER_KEY_MISSING|No API key stored/);
+  });
+});

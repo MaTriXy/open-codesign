@@ -104,13 +104,28 @@ export function getApiKeyForProvider(provider: string): string {
     );
   }
   const ref = cfg.secrets[provider as keyof typeof cfg.secrets];
-  if (ref === undefined) {
-    throw new CodesignError(
-      `No API key stored for provider "${provider}". Re-run onboarding to add one.`,
-      ERROR_CODES.PROVIDER_KEY_MISSING,
-    );
+  if (ref !== undefined) return decryptSecret(ref.ciphertext);
+
+  // Fallback: if the provider entry declares an envKey (e.g. imported
+  // Claude Code providers always declare ANTHROPIC_AUTH_TOKEN), resolve
+  // the key from the process environment. This rescues two cases that
+  // would otherwise be dead ends:
+  //   1. User exported ANTHROPIC_API_KEY in their shell and launched
+  //      from a terminal — the env is inherited but our onboarding never
+  //      called `encryptSecret`, so cfg.secrets[provider] is empty.
+  //   2. User deleted the persisted key from Settings but the env var is
+  //      still present. Treat it as a valid credential rather than
+  //      throwing a misleading "key missing" error.
+  const entry = cfg.providers[provider];
+  if (entry?.envKey !== undefined) {
+    const fromEnv = process.env[entry.envKey]?.trim();
+    if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
   }
-  return decryptSecret(ref.ciphertext);
+
+  throw new CodesignError(
+    `No API key stored for provider "${provider}". Re-run onboarding to add one.`,
+    ERROR_CODES.PROVIDER_KEY_MISSING,
+  );
 }
 
 export function getBaseUrlForProvider(provider: string): string | undefined {
@@ -705,9 +720,16 @@ async function runUpdateProvider(input: UpdateProviderInput): Promise<Onboarding
   return toState(cachedConfig);
 }
 
+interface ClaudeCodeDetectionMeta {
+  userType: ClaudeCodeImport['userType'];
+  baseUrl: string;
+  hasApiKey: boolean;
+  apiKeySource: ClaudeCodeImport['apiKeySource'];
+}
+
 interface ExternalConfigsDetection {
   codex?: CodexImport;
-  claudeCode?: ClaudeCodeImport;
+  claudeCode?: ClaudeCodeDetectionMeta;
 }
 
 async function runImportCodex(imported: CodexImport): Promise<OnboardingState> {
@@ -773,9 +795,20 @@ async function runImportCodex(imported: CodexImport): Promise<OnboardingState> {
 }
 
 async function runImportClaudeCode(imported: ClaudeCodeImport): Promise<OnboardingState> {
+  // OAuth-only users: bail loudly without touching config. The renderer
+  // catches this error code and shows the "subscription can't be shared"
+  // banner instead of a fake "imported" toast that would then immediately
+  // leave the user in a dead-locked hasKey:false state.
+  if (imported.userType === 'oauth-only') {
+    throw new CodesignError(
+      'Claude Code uses OAuth subscription auth. Generate an API key at https://console.anthropic.com to use it here.',
+      ERROR_CODES.CLAUDE_CODE_OAUTH_ONLY,
+    );
+  }
   if (imported.provider === null) {
     throw new CodesignError('Claude Code config produced no provider', ERROR_CODES.CONFIG_MISSING);
   }
+
   const nextProviders: Record<string, ProviderEntry> = { ...(cachedConfig?.providers ?? {}) };
   const nextSecrets = { ...(cachedConfig?.secrets ?? {}) };
   if (cachedConfig === null) {
@@ -785,14 +818,28 @@ async function runImportClaudeCode(imported: ClaudeCodeImport): Promise<Onboardi
   }
   nextProviders[imported.provider.id] = imported.provider;
   const importedApiKey = imported.apiKey?.trim();
-  if (importedApiKey !== undefined && importedApiKey.length > 0) {
+  const keySaved = importedApiKey !== undefined && importedApiKey.length > 0;
+  if (keySaved) {
     const ref = tryBuildSecretRef(importedApiKey);
     if (ref !== null) nextSecrets[imported.provider.id] = ref;
   }
+
+  // Flip active only when we have a key the new provider can actually use,
+  // or when the user is on a fresh install (no existing active to preserve).
+  // This is what kills the "active swapped to claude-code-imported but no
+  // key stored → hasKey:false → Onboarding is not complete" death path.
+  const shouldActivate = keySaved || cachedConfig === null;
+  const nextActiveProvider = shouldActivate
+    ? imported.provider.id
+    : (cachedConfig?.activeProvider ?? '');
+  const nextActiveModel = shouldActivate
+    ? (imported.activeModel ?? imported.provider.defaultModel)
+    : (cachedConfig?.activeModel ?? '');
+
   const next = hydrateConfig({
     version: 3,
-    activeProvider: imported.provider.id,
-    activeModel: imported.activeModel ?? imported.provider.defaultModel,
+    activeProvider: nextActiveProvider,
+    activeModel: nextActiveModel,
     secrets: nextSecrets,
     providers: nextProviders,
     ...(cachedConfig?.designSystem !== undefined
@@ -827,7 +874,9 @@ async function runListEndpointModels(raw: unknown): Promise<ListEndpointModelsRe
   if (typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     return { ok: false, error: 'apiKey required' };
   }
-  const cleaned = baseUrl.replace(/\/+$/, '');
+  const cleaned = baseUrl
+    .replace(/\/+$/, '')
+    .replace(/\/(chat\/completions|completions|responses|messages|models)$/, '');
   const url =
     parsedWire.data === 'anthropic'
       ? `${cleaned.replace(/\/v1$/, '')}/v1/models`
@@ -932,8 +981,18 @@ export function registerOnboardingIpc(): void {
       const alreadyHasClaudeCode = providerIds.includes('claude-code-imported');
       const out: ExternalConfigsDetection = {};
       if (codex !== null && codex.providers.length > 0 && !alreadyHasCodex) out.codex = codex;
-      if (claudeCode !== null && claudeCode.provider !== null && !alreadyHasClaudeCode)
-        out.claudeCode = claudeCode;
+      // Surface Claude Code unless we already imported it. We still surface
+      // `oauth-only` users (provider === null) because they need the
+      // "subscription can't be shared" banner too — `alreadyHasClaudeCode`
+      // is false in that case since no provider entry was ever created.
+      if (claudeCode !== null && claudeCode.userType !== 'no-config' && !alreadyHasClaudeCode) {
+        out.claudeCode = {
+          userType: claudeCode.userType,
+          baseUrl: claudeCode.provider?.baseUrl ?? 'https://api.anthropic.com',
+          hasApiKey: claudeCode.apiKey !== null,
+          apiKeySource: claudeCode.apiKeySource,
+        };
+      }
       return out;
     },
   );
@@ -951,7 +1010,17 @@ export function registerOnboardingIpc(): void {
 
   ipcMain.handle('config:v1:import-claude-code-config', async (): Promise<OnboardingState> => {
     const imported = await readClaudeCodeSettings();
-    if (imported === null || imported.provider === null) {
+    if (imported === null) {
+      throw new CodesignError(
+        'No Claude Code settings found at ~/.claude/settings.json',
+        ERROR_CODES.CONFIG_MISSING,
+      );
+    }
+    // Pass OAuth-only imports through to runImportClaudeCode so it can
+    // throw the CLAUDE_CODE_OAUTH_ONLY error. The renderer distinguishes
+    // that case and shows the subscription-warning banner — a generic
+    // "no config found" swallows the nuance.
+    if (imported.provider === null && imported.userType !== 'oauth-only') {
       throw new CodesignError(
         'No Claude Code settings found at ~/.claude/settings.json',
         ERROR_CODES.CONFIG_MISSING,

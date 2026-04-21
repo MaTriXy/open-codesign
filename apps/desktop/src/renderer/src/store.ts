@@ -1146,7 +1146,15 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     }
     const cfg = get().config;
     if (!isReadyConfig(cfg)) {
-      const msg = tr('errors.onboardingIncomplete');
+      // Give the user something actionable instead of "Onboarding is not
+      // complete." In practice the common path here is "imported a provider
+      // but no key" — see runImportClaudeCode for the local-proxy /
+      // remote-gateway branches that intentionally create an entry without
+      // a key. Tell them which provider is missing a key and where to fix it.
+      const msg =
+        cfg !== null && cfg.provider !== null && cfg.provider.length > 0
+          ? tr('errors.providerMissingKey', { provider: cfg.provider })
+          : tr('errors.onboardingIncomplete');
       set({ errorMessage: msg, lastError: msg });
       return;
     }

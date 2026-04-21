@@ -551,29 +551,92 @@ function ImportBanner({
   label,
   onImport,
   onDismiss,
+  actionLabel,
+  tone = 'accent',
 }: {
   label: string;
   onImport: () => void;
   onDismiss: () => void;
+  actionLabel?: string;
+  tone?: 'accent' | 'info';
 }) {
   const t = useT();
+  // Accent = green (Type B: import ready). Info = neutral blue (Type C: needs finishing).
+  const toneClasses =
+    tone === 'info'
+      ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-muted)]'
+      : 'border-[var(--color-accent)] bg-[var(--color-accent-tint)]';
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--color-accent)] bg-[var(--color-accent-tint)] px-3 py-2 flex items-center gap-2">
+    <div
+      className={`rounded-[var(--radius-md)] border ${toneClasses} px-3 py-2 flex items-center gap-2`}
+    >
       <span className="flex-1 text-[var(--text-xs)] text-[var(--color-text-primary)]">{label}</span>
       <button
         type="button"
         onClick={onImport}
-        className="h-7 px-2.5 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-on-accent)] bg-[var(--color-accent)] hover:opacity-90 transition-opacity"
+        className="h-7 px-2.5 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-on-accent)] bg-[var(--color-accent)] hover:opacity-90 transition-opacity whitespace-nowrap"
       >
-        {t('settings.providers.import.action')}
+        {actionLabel ?? t('settings.providers.import.action')}
       </button>
       <button
         type="button"
         onClick={onDismiss}
-        className="h-7 px-2 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
+        className="h-7 px-2 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
       >
         {t('settings.providers.import.dismiss')}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Full-width multi-line banner for the OAuth-subscription case — users who
+ * logged into Claude Code via Pro/Max OAuth and cannot share that quota
+ * with third-party apps. Renders the "why it won't work" explainer plus
+ * two CTAs: go grab an API key, or handle a local proxy manually.
+ */
+function OAuthSubscriptionBanner({
+  onDismiss,
+  onManualProxy,
+}: {
+  onDismiss: () => void;
+  onManualProxy: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
+          {t('settings.providers.import.claudeCodeOAuthTitle')}
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="h-7 px-2 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
+        >
+          {t('settings.providers.import.dismiss')}
+        </button>
+      </div>
+      <p className="text-[var(--text-xs)] text-[var(--color-text-secondary)] leading-relaxed">
+        {t('settings.providers.import.claudeCodeOAuthBody')}
+      </p>
+      <div className="flex flex-wrap gap-2 pt-1">
+        <a
+          href="https://console.anthropic.com/settings/keys"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="h-7 px-2.5 inline-flex items-center rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-on-accent)] bg-[var(--color-accent)] hover:opacity-90 transition-opacity whitespace-nowrap"
+        >
+          {t('settings.providers.import.claudeCodeOAuthCtaConsole')}
+        </a>
+        <button
+          type="button"
+          onClick={onManualProxy}
+          className="h-7 px-2.5 rounded-[var(--radius-sm)] text-[var(--text-xs)] text-[var(--color-text-secondary)] border border-[var(--color-border-strong)] hover:bg-[var(--color-surface-hover)] transition-colors whitespace-nowrap"
+        >
+          {t('settings.providers.import.claudeCodeOAuthCtaProxy')}
+        </button>
+      </div>
     </div>
   );
 }
@@ -589,7 +652,14 @@ function ModelsTab() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [externalConfigs, setExternalConfigs] = useState<{
     codex?: { count: number } | undefined;
-    claudeCode?: { baseUrl: string } | undefined;
+    claudeCode?:
+      | {
+          userType: 'has-api-key' | 'oauth-only' | 'local-proxy' | 'remote-gateway';
+          baseUrl: string;
+          apiKeySource: 'settings-json' | 'shell-env' | 'none';
+          hasApiKey: boolean;
+        }
+      | undefined;
   } | null>(null);
 
   useEffect(() => {
@@ -610,12 +680,27 @@ function ModelsTab() {
       .then((detected) => {
         const dismissedCodex = readDismissed('codex');
         const dismissedClaudeCode = readDismissed('claudeCode');
+        const surface =
+          detected.claudeCode !== undefined &&
+          detected.claudeCode.userType !== 'no-config' &&
+          !dismissedClaudeCode;
         setExternalConfigs({
           ...(detected.codex !== undefined && !dismissedCodex
             ? { codex: { count: detected.codex.providers.length } }
             : {}),
-          ...(detected.claudeCode?.provider && !dismissedClaudeCode
-            ? { claudeCode: { baseUrl: detected.claudeCode.provider.baseUrl } }
+          ...(surface && detected.claudeCode !== undefined
+            ? {
+                claudeCode: {
+                  userType: detected.claudeCode.userType as
+                    | 'has-api-key'
+                    | 'oauth-only'
+                    | 'local-proxy'
+                    | 'remote-gateway',
+                  baseUrl: detected.claudeCode.baseUrl,
+                  apiKeySource: detected.claudeCode.apiKeySource,
+                  hasApiKey: detected.claudeCode.hasApiKey,
+                },
+              }
             : {}),
         });
       })
@@ -658,6 +743,17 @@ function ModelsTab() {
       await reloadRows();
       pushToast({ variant: 'success', title: t('settings.providers.import.claudeCodeDone') });
     } catch (err) {
+      // OAuth-only users get their own copy — the generic "import failed"
+      // toast is misleading because the failure is expected (subscription
+      // auth can't be shared) and the remediation lives in the banner.
+      const code = (err as { code?: string } | null)?.code;
+      if (code === 'CLAUDE_CODE_OAUTH_ONLY') {
+        pushToast({
+          variant: 'info',
+          title: t('settings.providers.import.oauthErrorToast'),
+        });
+        return;
+      }
       pushToast({
         variant: 'error',
         title: t('settings.providers.import.failed'),
@@ -750,20 +846,68 @@ function ModelsTab() {
                   }}
                 />
               )}
-              {externalConfigs.claudeCode !== undefined && (
-                <ImportBanner
-                  label={t('settings.providers.import.claudeCodeFound', {
-                    baseUrl: externalConfigs.claudeCode.baseUrl,
-                  })}
-                  onImport={handleImportClaudeCode}
-                  onDismiss={() => {
+              {externalConfigs.claudeCode !== undefined &&
+                (() => {
+                  const cc = externalConfigs.claudeCode;
+                  const dismiss = () => {
                     writeDismissed('claudeCode');
                     setExternalConfigs((prev) =>
                       prev === null ? null : { ...prev, claudeCode: undefined },
                     );
-                  }}
-                />
-              )}
+                  };
+                  if (cc.userType === 'oauth-only') {
+                    return (
+                      <OAuthSubscriptionBanner
+                        onDismiss={dismiss}
+                        onManualProxy={() => {
+                          dismiss();
+                          setShowAddCustom(true);
+                        }}
+                      />
+                    );
+                  }
+                  if (cc.userType === 'has-api-key') {
+                    const source =
+                      cc.apiKeySource === 'shell-env'
+                        ? t('settings.providers.import.claudeCodeHasKeySourceEnv')
+                        : t('settings.providers.import.claudeCodeHasKeySourceSettings');
+                    return (
+                      <ImportBanner
+                        label={t('settings.providers.import.claudeCodeHasKeyBody', {
+                          source,
+                          baseUrl: cc.baseUrl,
+                        })}
+                        onImport={handleImportClaudeCode}
+                        onDismiss={dismiss}
+                      />
+                    );
+                  }
+                  if (cc.userType === 'local-proxy') {
+                    return (
+                      <ImportBanner
+                        tone="info"
+                        label={t('settings.providers.import.claudeCodeLocalProxyBody', {
+                          baseUrl: cc.baseUrl,
+                        })}
+                        actionLabel={t('settings.providers.import.claudeCodeLocalProxyAction')}
+                        onImport={handleImportClaudeCode}
+                        onDismiss={dismiss}
+                      />
+                    );
+                  }
+                  // remote-gateway
+                  return (
+                    <ImportBanner
+                      tone="info"
+                      label={t('settings.providers.import.claudeCodeRemoteGatewayBody', {
+                        baseUrl: cc.baseUrl,
+                      })}
+                      actionLabel={t('settings.providers.import.claudeCodeRemoteGatewayAction')}
+                      onImport={handleImportClaudeCode}
+                      onDismiss={dismiss}
+                    />
+                  );
+                })()}
             </div>
           )}
         <div className="flex items-center justify-between gap-[var(--space-3)] min-h-[var(--size-control-sm)]">

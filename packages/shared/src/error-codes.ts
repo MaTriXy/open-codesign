@@ -19,6 +19,7 @@ export const ERROR_CODES = {
   // Provider / network
   PROVIDER_AUTH_MISSING: 'PROVIDER_AUTH_MISSING',
   PROVIDER_KEY_MISSING: 'PROVIDER_KEY_MISSING',
+  PROVIDER_ACTIVE_MISSING_KEY: 'PROVIDER_ACTIVE_MISSING_KEY',
   PROVIDER_NOT_SUPPORTED: 'PROVIDER_NOT_SUPPORTED',
   PROVIDER_MODEL_UNKNOWN: 'PROVIDER_MODEL_UNKNOWN',
   PROVIDER_BASE_URL_MISSING: 'PROVIDER_BASE_URL_MISSING',
@@ -26,6 +27,7 @@ export const ERROR_CODES = {
   PROVIDER_HTTP_4XX: 'PROVIDER_HTTP_4XX',
   PROVIDER_ABORTED: 'PROVIDER_ABORTED',
   PROVIDER_RETRY_EXHAUSTED: 'PROVIDER_RETRY_EXHAUSTED',
+  CLAUDE_CODE_OAUTH_ONLY: 'CLAUDE_CODE_OAUTH_ONLY',
 
   // Generation / input
   INPUT_EMPTY_PROMPT: 'INPUT_EMPTY_PROMPT',
@@ -113,6 +115,10 @@ export const ERROR_CODE_DESCRIPTIONS: Record<CodesignErrorCode, ErrorCodeDescrip
     userFacing: 'No API key is stored for this provider. Add one in Settings.',
     category: 'provider',
   },
+  PROVIDER_ACTIVE_MISSING_KEY: {
+    userFacing: 'The active provider has no API key. Open Settings to add one.',
+    category: 'provider',
+  },
   PROVIDER_NOT_SUPPORTED: {
     userFacing: 'This provider is not supported. Check your provider configuration.',
     category: 'provider',
@@ -140,6 +146,11 @@ export const ERROR_CODE_DESCRIPTIONS: Record<CodesignErrorCode, ErrorCodeDescrip
   PROVIDER_RETRY_EXHAUSTED: {
     userFacing: 'The provider failed after several retries. Check your connection and try again.',
     category: 'connection',
+  },
+  CLAUDE_CODE_OAUTH_ONLY: {
+    userFacing:
+      'Your Claude Code login uses an Anthropic subscription (Pro/Max). Third-party apps cannot reuse the subscription quota — generate an API key at console.anthropic.com and use it here.',
+    category: 'provider',
   },
 
   // Generation / input
