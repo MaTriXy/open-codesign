@@ -122,6 +122,7 @@ export interface GenerateResponse {
 export interface Preferences {
   updateChannel: UpdateChannel;
   generationTimeoutSec: number;
+  checkForUpdatesOnStartup: boolean;
   dismissedUpdateVersion: string;
 }
 

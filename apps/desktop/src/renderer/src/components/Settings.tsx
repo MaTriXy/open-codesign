@@ -1675,6 +1675,7 @@ function AdvancedTab() {
   const [prefs, setPrefs] = useState<Preferences>({
     updateChannel: 'stable',
     generationTimeoutSec: 120,
+    checkForUpdatesOnStartup: true,
     dismissedUpdateVersion: '',
   });
 
@@ -1732,6 +1733,18 @@ function AdvancedTab() {
           ]}
           value={prefs.updateChannel}
           onChange={(v) => void updatePref({ updateChannel: v })}
+        />
+      </Row>
+
+      <Row
+        label={t('settings.advanced.checkForUpdatesOnStartup')}
+        hint={t('settings.advanced.checkForUpdatesOnStartupHint')}
+      >
+        <input
+          type="checkbox"
+          checked={prefs.checkForUpdatesOnStartup}
+          onChange={(e) => void updatePref({ checkForUpdatesOnStartup: e.target.checked })}
+          className="h-4 w-4 accent-[var(--color-accent)]"
         />
       </Row>
 
