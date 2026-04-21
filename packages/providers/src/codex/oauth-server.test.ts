@@ -62,6 +62,20 @@ describe('startCallbackServer', () => {
     await assertion;
   });
 
+  it('escapes HTML in error params on the error page', async () => {
+    const server = await track(await startCallbackServer(0));
+    const waiter = server.waitForCode('s');
+    const assertion = expect(waiter).rejects.toThrow(/<script>alert\(1\)<\/script>/);
+    const res = await fetch(
+      `${server.redirectUri}?error=${encodeURIComponent('<script>alert(1)</script>')}&error_description=${encodeURIComponent('pwned')}&state=s`,
+    );
+    expect(res.status).toBe(400);
+    const body = await res.text();
+    expect(body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(body).not.toContain('<script>alert(1)</script>');
+    await assertion;
+  });
+
   it('rejects when code is missing', async () => {
     const server = await track(await startCallbackServer(0));
     const waiter = server.waitForCode('foo');
