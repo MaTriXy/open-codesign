@@ -242,6 +242,8 @@ Open CoDesign 可以把一句自然语言提示词，直接变成一个完成度
 
 ## 社群
 
+Open CoDesign 在 [LINUX DO](https://linux.do/) 社区首发，感谢佬友们的反馈和建议。中文讨论、问题反馈、使用心得欢迎移步社区。
+
 中文用户交流群（微信）：
 
 <p align="center">

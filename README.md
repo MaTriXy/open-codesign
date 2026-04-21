@@ -251,6 +251,9 @@ Found a bug or have a feature request?
 
 ## Community
 
+Open CoDesign first launched on the [LINUX DO](https://linux.do/) community — thanks to everyone there for early feedback and discussion.
+
+- **[LINUX DO](https://linux.do/)** — Chinese-speaking discussion, use tips, and feedback (primary community).
 - **GitHub Issues** — [bug reports, feature requests, and async discussion](https://github.com/OpenCoworkAI/open-codesign/issues).
 - **WeChat group (Chinese-speaking users)** — scan the QR in [README.zh-CN.md#社群](./README.zh-CN.md#%E7%A4%BE%E7%BE%A4). WeChat group codes rotate every 7 days; we refresh the image in-repo on that cadence.
 
