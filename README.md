@@ -239,6 +239,15 @@ Add a `SKILL.md` to any project to teach the model your own taste.
 - `@mariozechner/pi-ai` (multi-provider model abstraction)
 - `better-sqlite3`, `electron-builder`
 
+## Reporting issues
+
+Found a bug or have a feature request?
+
+1. **Search** [existing issues](https://github.com/OpenCoworkAI/open-codesign/issues) first.
+2. **Generate a diagnostics bundle** — Settings → Storage → Export diagnostics (API keys and prompts are redacted automatically).
+3. **Open a new issue** using our [bug report](https://github.com/OpenCoworkAI/open-codesign/issues/new?template=bug_report.yml) or [feature request](https://github.com/OpenCoworkAI/open-codesign/issues/new?template=feature_request.yml) template.
+4. For security vulnerabilities, see [SECURITY.md](./SECURITY.md).
+
 ## Contributing
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md). Open an issue before writing code, sign commits with DCO, run `pnpm lint && pnpm typecheck && pnpm test` before a PR.

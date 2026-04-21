@@ -11,7 +11,10 @@ Thanks for considering a contribution. This project is in **pre-alpha**: the arc
 
 ## Filing an issue
 
-Use the issue templates. For bugs, include reproduction steps, OS/version, and a minimal example. For features, explain the *user problem* before proposing a solution.
+Use our issue templates:
+
+- **[Bug report](https://github.com/OpenCoworkAI/open-codesign/issues/new?template=bug_report.yml)** — reproduction steps, OS/version, and a diagnostics bundle (Settings → Storage → Export diagnostics) speed up triage significantly.
+- **[Feature request](https://github.com/OpenCoworkAI/open-codesign/issues/new?template=feature_request.yml)** — explain the *user problem* before proposing a solution, and confirm the proposal does not conflict with the [hard constraints](./CLAUDE.md).
 
 ## Submitting a PR
 
