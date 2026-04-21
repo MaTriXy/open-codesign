@@ -47,6 +47,7 @@ import {
 import { readPersisted as readPreferences, registerPreferencesIpc } from './preferences-ipc';
 import { preparePromptContext } from './prompt-context';
 import { resolveActiveModel } from './provider-settings';
+import { withRun } from './runContext';
 import { safeInitSnapshotsDb } from './snapshots-db';
 import { registerSnapshotsIpc, registerSnapshotsUnavailableIpc } from './snapshots-ipc';
 import { initStorageSettings } from './storage-settings';
@@ -424,143 +425,145 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('codesign:v1:generate', async (_e, raw: unknown) => {
     const payload = GeneratePayloadV1.parse(raw);
-    const controller = new AbortController();
     const id = payload.generationId;
-    inFlight.set(id, controller);
-    const coreLogger = coreLoggerFor(id);
+    return withRun(id, async () => {
+      const controller = new AbortController();
+      inFlight.set(id, controller);
+      const coreLogger = coreLoggerFor(id);
 
-    coreLogger.info('[generate] step=load_config');
-    const loadStart = Date.now();
-    const cfg = getCachedConfig();
-    if (cfg === null) {
-      inFlight.delete(id);
-      throw new CodesignError(
-        'No configuration found. Complete onboarding first.',
-        'CONFIG_MISSING',
-      );
-    }
-    // Snap to the canonical active provider in cachedConfig — the SAME source
-    // the Settings UI uses for the Active badge — so the actual call cannot
-    // diverge from what the user sees.
-    const active = resolveActiveModel(cfg, payload.model);
-    let apiKey: string;
-    try {
-      apiKey = getApiKeyForProvider(active.model.provider);
-    } catch {
-      apiKey = '';
-    }
-    const allowKeyless = active.allowKeyless;
-    // Once we've snapped to the canonical active provider, the renderer-supplied
-    // baseUrl can no longer be trusted — it may belong to a different (stale)
-    // provider and would route the active provider's API key to the wrong host.
-    // Always use the per-provider baseUrl from cached config, and mutate the
-    // payload itself so any downstream reader cannot accidentally pick up the
-    // stale renderer value.
-    const baseUrl = active.baseUrl ?? undefined;
-    if (active.overridden) {
-      payload.baseUrl = baseUrl;
-    }
-    coreLogger.info('[generate] step=load_config.ok', {
-      ms: Date.now() - loadStart,
-      hasApiKey: apiKey.length > 0,
-      baseUrl: baseUrl ?? '<default>',
-    });
-
-    if (active.overridden) {
-      coreLogger.info('[generate] step=resolve_active.override', {
-        requested: payload.model.provider,
-        requestedModelId: payload.model.modelId,
-        active: active.model.provider,
-        activeModelId: active.model.modelId,
+      coreLogger.info('[generate] step=load_config');
+      const loadStart = Date.now();
+      const cfg = getCachedConfig();
+      if (cfg === null) {
+        inFlight.delete(id);
+        throw new CodesignError(
+          'No configuration found. Complete onboarding first.',
+          'CONFIG_MISSING',
+        );
+      }
+      // Snap to the canonical active provider in cachedConfig — the SAME source
+      // the Settings UI uses for the Active badge — so the actual call cannot
+      // diverge from what the user sees.
+      const active = resolveActiveModel(cfg, payload.model);
+      let apiKey: string;
+      try {
+        apiKey = getApiKeyForProvider(active.model.provider);
+      } catch {
+        apiKey = '';
+      }
+      const allowKeyless = active.allowKeyless;
+      // Once we've snapped to the canonical active provider, the renderer-supplied
+      // baseUrl can no longer be trusted — it may belong to a different (stale)
+      // provider and would route the active provider's API key to the wrong host.
+      // Always use the per-provider baseUrl from cached config, and mutate the
+      // payload itself so any downstream reader cannot accidentally pick up the
+      // stale renderer value.
+      const baseUrl = active.baseUrl ?? undefined;
+      if (active.overridden) {
+        payload.baseUrl = baseUrl;
+      }
+      coreLogger.info('[generate] step=load_config.ok', {
+        ms: Date.now() - loadStart,
+        hasApiKey: apiKey.length > 0,
+        baseUrl: baseUrl ?? '<default>',
       });
-    }
 
-    const stepCtx = {
-      generationId: id,
-      provider: active.model.provider,
-      modelId: active.model.modelId,
-    };
-    coreLogger.info('[generate] step=validate_provider', stepCtx);
-    if (apiKey.length === 0 && !allowKeyless) {
-      coreLogger.error('[generate] step=validate_provider.fail', {
-        provider: active.model.provider,
-        reason: 'missing_api_key',
-      });
-      inFlight.delete(id);
-      throw new CodesignError(
-        `No API key configured for provider "${active.model.provider}". Open Settings to add one.`,
-        'PROVIDER_AUTH_MISSING',
-      );
-    }
-    coreLogger.info('[generate] step=validate_provider.ok', { provider: active.model.provider });
+      if (active.overridden) {
+        coreLogger.info('[generate] step=resolve_active.override', {
+          requested: payload.model.provider,
+          requestedModelId: payload.model.modelId,
+          active: active.model.provider,
+          activeModelId: active.model.modelId,
+        });
+      }
 
-    const promptContext = await preparePromptContext({
-      attachments: payload.attachments,
-      referenceUrl: payload.referenceUrl,
-      designSystem: cfg.designSystem ?? null,
-    });
-
-    logIpc.info('generate', {
-      generationId: id,
-      provider: active.model.provider,
-      modelId: active.model.modelId,
-      ...(active.overridden
-        ? { requestedProvider: payload.model.provider, requestedModelId: payload.model.modelId }
-        : {}),
-      promptLen: payload.prompt.length,
-      historyLen: payload.history.length,
-      attachmentCount: payload.attachments.length,
-      hasReferenceUrl: payload.referenceUrl !== undefined,
-      hasDesignSystem: promptContext.designSystem !== null,
-      baseUrl: baseUrl ?? '<default>',
-    });
-
-    const t0 = Date.now();
-    let clearTimeoutGuard: () => void = () => {};
-    try {
-      clearTimeoutGuard = await armTimeout(id, controller);
-      const result = await runGenerate(
-        {
-          prompt: payload.prompt,
-          history: payload.history,
-          model: active.model,
-          apiKey,
-          attachments: promptContext.attachments,
-          referenceUrl: promptContext.referenceUrl,
-          designSystem: promptContext.designSystem ?? null,
-          ...(baseUrl !== undefined ? { baseUrl } : {}),
-          wire: active.wire,
-          ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-          ...(allowKeyless ? { allowKeyless: true } : {}),
-          signal: controller.signal,
-          logger: coreLogger,
-        },
-        id,
-        payload.designId ?? null,
-        payload.previousHtml ?? null,
-      );
-      logIpc.info('generate.ok', {
+      const stepCtx = {
         generationId: id,
-        ms: Date.now() - t0,
-        artifacts: result.artifacts.length,
-        cost: result.costUsd,
-      });
-      return result;
-    } catch (err) {
-      logIpc.error('generate.fail', {
-        generationId: id,
-        ms: Date.now() - t0,
         provider: active.model.provider,
         modelId: active.model.modelId,
-        baseUrl: baseUrl ?? '<default>',
-        message: err instanceof Error ? err.message : String(err),
-        code: err instanceof CodesignError ? err.code : undefined,
+      };
+      coreLogger.info('[generate] step=validate_provider', stepCtx);
+      if (apiKey.length === 0 && !allowKeyless) {
+        coreLogger.error('[generate] step=validate_provider.fail', {
+          provider: active.model.provider,
+          reason: 'missing_api_key',
+        });
+        inFlight.delete(id);
+        throw new CodesignError(
+          `No API key configured for provider "${active.model.provider}". Open Settings to add one.`,
+          'PROVIDER_AUTH_MISSING',
+        );
+      }
+      coreLogger.info('[generate] step=validate_provider.ok', { provider: active.model.provider });
+
+      const promptContext = await preparePromptContext({
+        attachments: payload.attachments,
+        referenceUrl: payload.referenceUrl,
+        designSystem: cfg.designSystem ?? null,
       });
-      throw err;
-    } finally {
-      clearTimeoutGuard();
-      inFlight.delete(id);
-    }
+
+      logIpc.info('generate', {
+        generationId: id,
+        provider: active.model.provider,
+        modelId: active.model.modelId,
+        ...(active.overridden
+          ? { requestedProvider: payload.model.provider, requestedModelId: payload.model.modelId }
+          : {}),
+        promptLen: payload.prompt.length,
+        historyLen: payload.history.length,
+        attachmentCount: payload.attachments.length,
+        hasReferenceUrl: payload.referenceUrl !== undefined,
+        hasDesignSystem: promptContext.designSystem !== null,
+        baseUrl: baseUrl ?? '<default>',
+      });
+
+      const t0 = Date.now();
+      let clearTimeoutGuard: () => void = () => {};
+      try {
+        clearTimeoutGuard = await armTimeout(id, controller);
+        const result = await runGenerate(
+          {
+            prompt: payload.prompt,
+            history: payload.history,
+            model: active.model,
+            apiKey,
+            attachments: promptContext.attachments,
+            referenceUrl: promptContext.referenceUrl,
+            designSystem: promptContext.designSystem ?? null,
+            ...(baseUrl !== undefined ? { baseUrl } : {}),
+            wire: active.wire,
+            ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
+            ...(allowKeyless ? { allowKeyless: true } : {}),
+            signal: controller.signal,
+            logger: coreLogger,
+          },
+          id,
+          payload.designId ?? null,
+          payload.previousHtml ?? null,
+        );
+        logIpc.info('generate.ok', {
+          generationId: id,
+          ms: Date.now() - t0,
+          artifacts: result.artifacts.length,
+          cost: result.costUsd,
+        });
+        return result;
+      } catch (err) {
+        logIpc.error('generate.fail', {
+          generationId: id,
+          ms: Date.now() - t0,
+          provider: active.model.provider,
+          modelId: active.model.modelId,
+          baseUrl: baseUrl ?? '<default>',
+          message: err instanceof Error ? err.message : String(err),
+          code: err instanceof CodesignError ? err.code : undefined,
+        });
+        throw err;
+      } finally {
+        clearTimeoutGuard();
+        inFlight.delete(id);
+      }
+    });
   });
 
   // Legacy shim — kept for one minor release while older renderer builds still
@@ -569,98 +572,100 @@ function registerIpcHandlers(): void {
     logIpc.warn('legacy codesign:generate channel used, schedule removal next minor');
     const legacy = GeneratePayload.parse(raw);
     const id = legacy.generationId ?? `gen-${Date.now()}`;
-    const v1Raw = { schemaVersion: 1 as const, ...legacy, generationId: id };
-    const payload = GeneratePayloadV1.parse(v1Raw);
-    const controller = new AbortController();
-    inFlight.set(id, controller);
+    return withRun(id, async () => {
+      const v1Raw = { schemaVersion: 1 as const, ...legacy, generationId: id };
+      const payload = GeneratePayloadV1.parse(v1Raw);
+      const controller = new AbortController();
+      inFlight.set(id, controller);
 
-    const cfg = getCachedConfig();
-    if (cfg === null) {
-      inFlight.delete(id);
-      throw new CodesignError(
-        'No configuration found. Complete onboarding first.',
-        'CONFIG_MISSING',
-      );
-    }
-    const active = resolveActiveModel(cfg, payload.model);
-    let apiKey: string;
-    try {
-      apiKey = getApiKeyForProvider(active.model.provider);
-    } catch {
-      apiKey = '';
-    }
-    const allowKeyless = active.allowKeyless;
-    // See codesign:v1:generate above — renderer baseUrl is ignored post-snap.
-    const baseUrl = active.baseUrl ?? undefined;
-    if (active.overridden) {
-      payload.baseUrl = baseUrl;
-    }
-    const promptContext = await preparePromptContext({
-      attachments: payload.attachments,
-      referenceUrl: payload.referenceUrl,
-      designSystem: cfg.designSystem ?? null,
-    });
-
-    logIpc.info('generate', {
-      generationId: id,
-      provider: active.model.provider,
-      modelId: active.model.modelId,
-      ...(active.overridden
-        ? { requestedProvider: payload.model.provider, requestedModelId: payload.model.modelId }
-        : {}),
-      promptLen: payload.prompt.length,
-      historyLen: payload.history.length,
-      attachmentCount: payload.attachments.length,
-      hasReferenceUrl: payload.referenceUrl !== undefined,
-      hasDesignSystem: promptContext.designSystem !== null,
-      baseUrl: baseUrl ?? '<default>',
-    });
-
-    const t0 = Date.now();
-    let clearTimeoutGuard: () => void = () => {};
-    try {
-      clearTimeoutGuard = await armTimeout(id, controller);
-      const result = await runGenerate(
-        {
-          prompt: payload.prompt,
-          history: payload.history,
-          model: active.model,
-          apiKey,
-          attachments: promptContext.attachments,
-          referenceUrl: promptContext.referenceUrl,
-          designSystem: promptContext.designSystem ?? null,
-          ...(baseUrl !== undefined ? { baseUrl } : {}),
-          wire: active.wire,
-          ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-          ...(allowKeyless ? { allowKeyless: true } : {}),
-          signal: controller.signal,
-        },
-        id,
-        null,
-        null,
-      );
-      logIpc.info('generate.ok', {
-        generationId: id,
-        ms: Date.now() - t0,
-        artifacts: result.artifacts.length,
-        cost: result.costUsd,
+      const cfg = getCachedConfig();
+      if (cfg === null) {
+        inFlight.delete(id);
+        throw new CodesignError(
+          'No configuration found. Complete onboarding first.',
+          'CONFIG_MISSING',
+        );
+      }
+      const active = resolveActiveModel(cfg, payload.model);
+      let apiKey: string;
+      try {
+        apiKey = getApiKeyForProvider(active.model.provider);
+      } catch {
+        apiKey = '';
+      }
+      const allowKeyless = active.allowKeyless;
+      // See codesign:v1:generate above — renderer baseUrl is ignored post-snap.
+      const baseUrl = active.baseUrl ?? undefined;
+      if (active.overridden) {
+        payload.baseUrl = baseUrl;
+      }
+      const promptContext = await preparePromptContext({
+        attachments: payload.attachments,
+        referenceUrl: payload.referenceUrl,
+        designSystem: cfg.designSystem ?? null,
       });
-      return result;
-    } catch (err) {
-      logIpc.error('generate.fail', {
+
+      logIpc.info('generate', {
         generationId: id,
-        ms: Date.now() - t0,
         provider: active.model.provider,
         modelId: active.model.modelId,
+        ...(active.overridden
+          ? { requestedProvider: payload.model.provider, requestedModelId: payload.model.modelId }
+          : {}),
+        promptLen: payload.prompt.length,
+        historyLen: payload.history.length,
+        attachmentCount: payload.attachments.length,
+        hasReferenceUrl: payload.referenceUrl !== undefined,
+        hasDesignSystem: promptContext.designSystem !== null,
         baseUrl: baseUrl ?? '<default>',
-        message: err instanceof Error ? err.message : String(err),
-        code: err instanceof CodesignError ? err.code : undefined,
       });
-      throw err;
-    } finally {
-      clearTimeoutGuard();
-      inFlight.delete(id);
-    }
+
+      const t0 = Date.now();
+      let clearTimeoutGuard: () => void = () => {};
+      try {
+        clearTimeoutGuard = await armTimeout(id, controller);
+        const result = await runGenerate(
+          {
+            prompt: payload.prompt,
+            history: payload.history,
+            model: active.model,
+            apiKey,
+            attachments: promptContext.attachments,
+            referenceUrl: promptContext.referenceUrl,
+            designSystem: promptContext.designSystem ?? null,
+            ...(baseUrl !== undefined ? { baseUrl } : {}),
+            wire: active.wire,
+            ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
+            ...(allowKeyless ? { allowKeyless: true } : {}),
+            signal: controller.signal,
+          },
+          id,
+          null,
+          null,
+        );
+        logIpc.info('generate.ok', {
+          generationId: id,
+          ms: Date.now() - t0,
+          artifacts: result.artifacts.length,
+          cost: result.costUsd,
+        });
+        return result;
+      } catch (err) {
+        logIpc.error('generate.fail', {
+          generationId: id,
+          ms: Date.now() - t0,
+          provider: active.model.provider,
+          modelId: active.model.modelId,
+          baseUrl: baseUrl ?? '<default>',
+          message: err instanceof Error ? err.message : String(err),
+          code: err instanceof CodesignError ? err.code : undefined,
+        });
+        throw err;
+      } finally {
+        clearTimeoutGuard();
+        inFlight.delete(id);
+      }
+    });
   });
 
   ipcMain.handle('codesign:v1:cancel-generation', (_e, raw: unknown) => {
@@ -670,128 +675,134 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('codesign:apply-comment', async (_e, raw: unknown) => {
     const payload = ApplyCommentPayload.parse(raw);
-    const cfg = getCachedConfig();
-    if (cfg === null) {
-      throw new CodesignError(
-        'No configuration found. Complete onboarding first.',
-        'CONFIG_MISSING',
-      );
-    }
-    // Inline-comment edits don't need to be tied to whatever provider was
-    // pinned in the original generate; resolve fresh against the canonical
-    // active provider so a switch in Settings takes effect immediately.
-    const hint = payload.model ?? { provider: cfg.provider, modelId: cfg.modelPrimary };
-    const active = resolveActiveModel(cfg, hint);
-    let apiKey: string;
-    try {
-      apiKey = getApiKeyForProvider(active.model.provider);
-    } catch {
-      apiKey = '';
-    }
-    const allowKeyless = active.allowKeyless;
-    const baseUrl = active.baseUrl ?? undefined;
-    const promptContext = await preparePromptContext({
-      attachments: payload.attachments,
-      referenceUrl: payload.referenceUrl,
-      designSystem: cfg.designSystem ?? null,
-    });
-
-    logIpc.info('applyComment', {
-      provider: active.model.provider,
-      modelId: active.model.modelId,
-      ...(active.overridden
-        ? { requestedProvider: hint.provider, requestedModelId: hint.modelId }
-        : {}),
-      selector: payload.selection.selector,
-      attachmentCount: payload.attachments.length,
-      hasReferenceUrl: payload.referenceUrl !== undefined,
-      hasDesignSystem: promptContext.designSystem !== null,
-      baseUrl: baseUrl ?? '<default>',
-    });
-
-    const t0 = Date.now();
-    try {
-      const result = await applyComment({
-        html: payload.html,
-        comment: payload.comment,
-        selection: payload.selection,
-        model: active.model,
-        apiKey,
-        attachments: promptContext.attachments,
-        referenceUrl: promptContext.referenceUrl,
-        designSystem: promptContext.designSystem ?? null,
-        ...(baseUrl !== undefined ? { baseUrl } : {}),
-        wire: active.wire,
-        ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-        ...(allowKeyless ? { allowKeyless: true } : {}),
+    const runId = crypto.randomUUID();
+    return withRun(runId, async () => {
+      const cfg = getCachedConfig();
+      if (cfg === null) {
+        throw new CodesignError(
+          'No configuration found. Complete onboarding first.',
+          'CONFIG_MISSING',
+        );
+      }
+      // Inline-comment edits don't need to be tied to whatever provider was
+      // pinned in the original generate; resolve fresh against the canonical
+      // active provider so a switch in Settings takes effect immediately.
+      const hint = payload.model ?? { provider: cfg.provider, modelId: cfg.modelPrimary };
+      const active = resolveActiveModel(cfg, hint);
+      let apiKey: string;
+      try {
+        apiKey = getApiKeyForProvider(active.model.provider);
+      } catch {
+        apiKey = '';
+      }
+      const allowKeyless = active.allowKeyless;
+      const baseUrl = active.baseUrl ?? undefined;
+      const promptContext = await preparePromptContext({
+        attachments: payload.attachments,
+        referenceUrl: payload.referenceUrl,
+        designSystem: cfg.designSystem ?? null,
       });
-      logIpc.info('applyComment.ok', {
-        ms: Date.now() - t0,
-        artifacts: result.artifacts.length,
-        cost: result.costUsd,
-      });
-      return result;
-    } catch (err) {
-      logIpc.error('applyComment.fail', {
-        ms: Date.now() - t0,
+
+      logIpc.info('applyComment', {
         provider: active.model.provider,
         modelId: active.model.modelId,
+        ...(active.overridden
+          ? { requestedProvider: hint.provider, requestedModelId: hint.modelId }
+          : {}),
         selector: payload.selection.selector,
-        message: err instanceof Error ? err.message : String(err),
-        code: err instanceof CodesignError ? err.code : undefined,
+        attachmentCount: payload.attachments.length,
+        hasReferenceUrl: payload.referenceUrl !== undefined,
+        hasDesignSystem: promptContext.designSystem !== null,
+        baseUrl: baseUrl ?? '<default>',
       });
-      throw err;
-    }
+
+      const t0 = Date.now();
+      try {
+        const result = await applyComment({
+          html: payload.html,
+          comment: payload.comment,
+          selection: payload.selection,
+          model: active.model,
+          apiKey,
+          attachments: promptContext.attachments,
+          referenceUrl: promptContext.referenceUrl,
+          designSystem: promptContext.designSystem ?? null,
+          ...(baseUrl !== undefined ? { baseUrl } : {}),
+          wire: active.wire,
+          ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
+          ...(allowKeyless ? { allowKeyless: true } : {}),
+        });
+        logIpc.info('applyComment.ok', {
+          ms: Date.now() - t0,
+          artifacts: result.artifacts.length,
+          cost: result.costUsd,
+        });
+        return result;
+      } catch (err) {
+        logIpc.error('applyComment.fail', {
+          ms: Date.now() - t0,
+          provider: active.model.provider,
+          modelId: active.model.modelId,
+          selector: payload.selection.selector,
+          message: err instanceof Error ? err.message : String(err),
+          code: err instanceof CodesignError ? err.code : undefined,
+        });
+        throw err;
+      }
+    });
   });
 
   ipcMain.handle('codesign:v1:generate-title', async (_e, raw: unknown): Promise<string> => {
-    if (typeof raw !== 'object' || raw === null) {
-      throw new CodesignError('generate-title expects an object payload', 'IPC_BAD_INPUT');
-    }
-    const prompt = (raw as { prompt?: unknown }).prompt;
-    if (typeof prompt !== 'string' || prompt.trim().length === 0) {
-      throw new CodesignError('generate-title requires a non-empty prompt', 'IPC_BAD_INPUT');
-    }
-    const cfg = getCachedConfig();
-    if (cfg === null) throw new CodesignError('No configuration', 'CONFIG_MISSING');
-    const active = resolveActiveModel(cfg, {
-      provider: cfg.activeProvider,
-      modelId: cfg.activeModel,
+    const runId = crypto.randomUUID();
+    return withRun(runId, async () => {
+      if (typeof raw !== 'object' || raw === null) {
+        throw new CodesignError('generate-title expects an object payload', 'IPC_BAD_INPUT');
+      }
+      const prompt = (raw as { prompt?: unknown }).prompt;
+      if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+        throw new CodesignError('generate-title requires a non-empty prompt', 'IPC_BAD_INPUT');
+      }
+      const cfg = getCachedConfig();
+      if (cfg === null) throw new CodesignError('No configuration', 'CONFIG_MISSING');
+      const active = resolveActiveModel(cfg, {
+        provider: cfg.activeProvider,
+        modelId: cfg.activeModel,
+      });
+      let apiKey: string;
+      try {
+        apiKey = getApiKeyForProvider(active.model.provider);
+      } catch {
+        apiKey = '';
+      }
+      const allowKeyless = active.allowKeyless;
+      const baseUrl = active.baseUrl ?? undefined;
+      const titleLogger: CoreLogger = {
+        info: (event, data) => logIpc.info(event, data),
+        warn: (event, data) => logIpc.warn(event, data),
+        error: (event, data) => logIpc.error(event, data),
+      };
+      try {
+        return await generateTitle({
+          prompt,
+          model: active.model,
+          apiKey,
+          ...(baseUrl !== undefined ? { baseUrl } : {}),
+          wire: active.wire,
+          ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
+          ...(allowKeyless ? { allowKeyless: true } : {}),
+          logger: titleLogger,
+        });
+      } catch (err) {
+        logIpc.error('[title] generate-title.fail', {
+          provider: active.model.provider,
+          modelId: active.model.modelId,
+          baseUrl,
+          message: err instanceof Error ? err.message : String(err),
+          code: err instanceof CodesignError ? err.code : undefined,
+        });
+        throw err;
+      }
     });
-    let apiKey: string;
-    try {
-      apiKey = getApiKeyForProvider(active.model.provider);
-    } catch {
-      apiKey = '';
-    }
-    const allowKeyless = active.allowKeyless;
-    const baseUrl = active.baseUrl ?? undefined;
-    const titleLogger: CoreLogger = {
-      info: (event, data) => logIpc.info(event, data),
-      warn: (event, data) => logIpc.warn(event, data),
-      error: (event, data) => logIpc.error(event, data),
-    };
-    try {
-      return await generateTitle({
-        prompt,
-        model: active.model,
-        apiKey,
-        ...(baseUrl !== undefined ? { baseUrl } : {}),
-        wire: active.wire,
-        ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-        ...(allowKeyless ? { allowKeyless: true } : {}),
-        logger: titleLogger,
-      });
-    } catch (err) {
-      logIpc.error('[title] generate-title.fail', {
-        provider: active.model.provider,
-        modelId: active.model.modelId,
-        baseUrl,
-        message: err instanceof Error ? err.message : String(err),
-        code: err instanceof CodesignError ? err.code : undefined,
-      });
-      throw err;
-    }
   });
 
   ipcMain.handle('codesign:open-log-folder', async () => {

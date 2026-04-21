@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import log from 'electron-log/main';
 import { app } from './electron-runtime';
+import { currentRunId } from './runContext';
 import { getActiveStorageLocations } from './storage-settings';
 
 /**
@@ -63,8 +64,25 @@ export function initLogger(): typeof log {
   return log;
 }
 
-export function getLogger(scope: string) {
-  return log.scope(scope);
+export interface ScopedLogger {
+  info: (event: string, data?: Record<string, unknown>) => void;
+  warn: (event: string, data?: Record<string, unknown>) => void;
+  error: (event: string, data?: Record<string, unknown>) => void;
+}
+
+export function getLogger(scope: string): ScopedLogger {
+  const scoped = log.scope(scope);
+  const wrap =
+    (level: 'info' | 'warn' | 'error') => (event: string, data?: Record<string, unknown>) => {
+      const runId = currentRunId();
+      const merged = runId !== undefined ? { runId, ...(data ?? {}) } : data;
+      if (merged === undefined) {
+        scoped[level](event);
+      } else {
+        scoped[level](event, merged);
+      }
+    };
+  return { info: wrap('info'), warn: wrap('warn'), error: wrap('error') };
 }
 
 export function getLogPath(): string {
