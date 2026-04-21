@@ -5,6 +5,8 @@ import {
   type Config,
   type OnboardingState,
   type ProviderEntry,
+  type ReasoningLevel,
+  ReasoningLevelSchema,
   StoredDesignSystem,
   type StoredDesignSystem as StoredDesignSystemValue,
   type SupportedOnboardingProvider,
@@ -583,6 +585,7 @@ interface UpdateProviderInput {
   httpHeaders?: Record<string, string>;
   queryParams?: Record<string, string>;
   wire?: WireApi;
+  reasoningLevel?: ReasoningLevel | null;
 }
 
 function parseUpdateProviderPayload(raw: unknown): UpdateProviderInput {
@@ -624,6 +627,13 @@ function parseUpdateProviderPayload(raw: unknown): UpdateProviderInput {
     const parsedWire = WireApiSchema.safeParse(r['wire']);
     if (parsedWire.success) out.wire = parsedWire.data;
   }
+  if (r['reasoningLevel'] === null) {
+    // Explicit null clears the override so the core default kicks in.
+    out.reasoningLevel = null;
+  } else if (typeof r['reasoningLevel'] === 'string') {
+    const parsed = ReasoningLevelSchema.safeParse(r['reasoningLevel']);
+    if (parsed.success) out.reasoningLevel = parsed.data;
+  }
   return out;
 }
 
@@ -645,6 +655,15 @@ async function runUpdateProvider(input: UpdateProviderInput): Promise<Onboarding
     ...(input.queryParams !== undefined ? { queryParams: input.queryParams } : {}),
     ...(input.wire !== undefined ? { wire: input.wire } : {}),
   };
+  // reasoningLevel has a tri-state semantic: undefined means "untouched",
+  // null means "explicitly clear the override so core picks the default",
+  // a string level means "set it". Handle separately from the spread above
+  // because the `...undefined ? {} : {...}` pattern can't express "delete".
+  if (input.reasoningLevel === null) {
+    delete updated.reasoningLevel;
+  } else if (input.reasoningLevel !== undefined) {
+    updated.reasoningLevel = input.reasoningLevel;
+  }
   const next = hydrateConfig({
     version: 3,
     activeProvider: cfg.activeProvider,

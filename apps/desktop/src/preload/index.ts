@@ -14,6 +14,7 @@ import type {
   ModelRef,
   OnboardingState,
   ProviderEntry,
+  ReasoningLevel,
   SelectedElement,
   SnapshotCreateInput,
   SupportedOnboardingProvider,
@@ -56,6 +57,7 @@ export interface ProviderRow {
   wire: WireApi;
   defaultModel: string;
   hasKey: boolean;
+  reasoningLevel?: ReasoningLevel;
   error?: 'decryption_failed' | string;
 }
 
