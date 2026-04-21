@@ -69,13 +69,13 @@ export function ModelSwitcher({ variant }: ModelSwitcherProps) {
   const providerLabel = activeProviderRow?.label ?? provider;
 
   async function switchModel(model: string) {
-    if (!window.codesign || model === currentModel) {
+    if (!window.codesign || !provider || model === currentModel) {
       setOpen(false);
       return;
     }
     try {
       const next = await window.codesign.settings.setActiveProvider({
-        provider: provider!,
+        provider,
         modelPrimary: model,
       });
       setConfig(next);

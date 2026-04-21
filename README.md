@@ -99,29 +99,30 @@ Your providers, models, and API keys import in one click — no copy-paste, no r
 
 ### 1. Install
 
-**Package managers** (recommended):
-
-```sh
-# macOS — Homebrew
-brew tap OpenCoworkAI/tap
-brew install --cask open-codesign
-
-# Windows — winget
-winget install OpenCoworkAI.open-codesign
-
-# Windows — Scoop
-scoop bucket add opencowork https://github.com/OpenCoworkAI/scoop-bucket
-scoop install opencowork/open-codesign
-```
-
-**Direct download** from [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases):
+**Direct download** (v0.1.x) from [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases):
 
 | Platform | File |
 |---|---|
 | macOS (Apple Silicon) | `open-codesign-*-arm64.dmg` |
-| macOS (Intel) | `open-codesign-*.dmg` |
-| Windows (x64 / arm64) | `open-codesign-*-setup.exe` |
-| Linux | `open-codesign-*.AppImage` |
+| macOS (Intel) | `open-codesign-*-x64.dmg` |
+| Windows (x64) | `open-codesign-*-x64-setup.exe` |
+| Windows (ARM64) | `open-codesign-*-arm64-setup.exe` |
+| Linux (x64) | `open-codesign-*-x64.AppImage` |
+
+Each release ships with `SHA256SUMS.txt` and a CycloneDX SBOM (`*-sbom.cdx.json`) so you can verify what you downloaded.
+
+<details>
+<summary><b>Package managers</b> — status for v0.1.x</summary>
+
+| Manager | Command | Status |
+|---|---|---|
+| Homebrew Cask (macOS) | `brew install --cask opencoworkai/tap/open-codesign` | 🟡 Tap pending — manifest in [`packaging/homebrew/`](./packaging/homebrew/) |
+| winget (Windows) | `winget install OpenCoworkAI.OpenCoDesign` | 🟡 First submission pending — manifest in [`packaging/winget/`](./packaging/winget/) |
+| Flathub (Linux) | `flatpak install flathub ai.opencowork.codesign` | 🟡 Submission pending — manifest in [`packaging/flatpak/`](./packaging/flatpak/) |
+| Snap (Linux) | `snap install --dangerous open-codesign-*.snap` | 🟡 Attached to releases best-effort; Snap Store publish not yet wired |
+
+Each release-time PR is auto-opened by CI once the corresponding tap/manifest/secret is provisioned — see each `packaging/*/README.md` for setup.
+</details>
 
 > **v0.1 note:** installers are unsigned. macOS: right-click → Open, or run `xattr -d com.apple.quarantine /Applications/open-codesign.app` after install. Windows: SmartScreen → More info → Run anyway.
 > Want a verified build? Compile from source — see [CONTRIBUTING.md](./CONTRIBUTING.md).

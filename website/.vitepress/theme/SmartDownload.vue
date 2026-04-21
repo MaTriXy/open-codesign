@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import pkg from '../../../package.json';
 
 /**
  * Smart download row — detects the visitor's OS + CPU architecture and
@@ -13,12 +14,12 @@ import { onMounted, ref } from 'vue';
  * experience when JS is available. If JS is off (rare) the visitor just
  * uses the hero button and picks manually from the Releases page.
  *
- * Version sourcing: hardcoded here for now. When we cut a release, bump
- * the `latestVersion` constant and the file names below — eventually we
- * should drive it from a GitHub API fetch, but that's a P1 item.
+ * Version is pulled from the workspace root package.json at build time so
+ * the asset URLs always match the latest release tag. File names must
+ * track electron-builder artifactName patterns in apps/desktop/electron-builder.yml.
  */
 
-const latestVersion = '0.1.0';
+const latestVersion = (pkg as { version: string }).version;
 const releasesBase = `https://github.com/OpenCoworkAI/open-codesign/releases/download/v${latestVersion}`;
 
 type Asset = { label: string; file: string; size: string; url: string };
@@ -31,15 +32,15 @@ const macArm: Asset = {
 };
 const macIntel: Asset = {
   label: 'macOS · Intel',
-  file: `open-codesign-${latestVersion}.dmg`,
+  file: `open-codesign-${latestVersion}-x64.dmg`,
   size: '140 MB',
-  url: `${releasesBase}/open-codesign-${latestVersion}.dmg`,
+  url: `${releasesBase}/open-codesign-${latestVersion}-x64.dmg`,
 };
 const winX64: Asset = {
   label: 'Windows · x64',
-  file: `open-codesign-${latestVersion}-setup.exe`,
+  file: `open-codesign-${latestVersion}-x64-setup.exe`,
   size: '~110 MB',
-  url: `${releasesBase}/open-codesign-${latestVersion}-setup.exe`,
+  url: `${releasesBase}/open-codesign-${latestVersion}-x64-setup.exe`,
 };
 const winArm: Asset = {
   label: 'Windows · ARM64',
@@ -47,14 +48,20 @@ const winArm: Asset = {
   size: '~100 MB',
   url: `${releasesBase}/open-codesign-${latestVersion}-arm64-setup.exe`,
 };
-const linuxX64: Asset = {
+const linuxAppImage: Asset = {
   label: 'Linux · AppImage (x64)',
-  file: `open-codesign-${latestVersion}.AppImage`,
+  file: `open-codesign-${latestVersion}-x64.AppImage`,
   size: '~140 MB',
-  url: `${releasesBase}/open-codesign-${latestVersion}.AppImage`,
+  url: `${releasesBase}/open-codesign-${latestVersion}-x64.AppImage`,
+};
+const linuxSnap: Asset = {
+  label: 'Linux · Snap (x64)',
+  file: `open-codesign-${latestVersion}-x64.snap`,
+  size: '~140 MB',
+  url: `${releasesBase}/open-codesign-${latestVersion}-x64.snap`,
 };
 
-const allAssets: Asset[] = [macArm, macIntel, winX64, winArm, linuxX64];
+const allAssets: Asset[] = [macArm, macIntel, winX64, winArm, linuxAppImage, linuxSnap];
 const primary = ref<Asset | null>(null);
 const detectedLabel = ref<string>('');
 
@@ -85,7 +92,7 @@ function detectPrimaryAsset(): { asset: Asset | null; label: string } {
       ? { asset: winArm, label: 'Windows · ARM64 detected' }
       : { asset: winX64, label: 'Windows · x64 detected' };
   }
-  if (isLinux) return { asset: linuxX64, label: 'Linux detected' };
+  if (isLinux) return { asset: linuxAppImage, label: 'Linux detected' };
   return { asset: null, label: '' };
 }
 
@@ -95,8 +102,10 @@ onMounted(() => {
   detectedLabel.value = label;
 });
 
-const secondaryAssets = () =>
-  primary.value ? allAssets.filter((a) => a.file !== primary.value!.file) : allAssets;
+const secondaryAssets = () => {
+  const p = primary.value;
+  return p ? allAssets.filter((a) => a.file !== p.file) : allAssets;
+};
 </script>
 
 <template>

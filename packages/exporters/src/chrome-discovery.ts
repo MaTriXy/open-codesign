@@ -53,7 +53,6 @@ export async function findSystemChrome(deps: ChromeDiscoveryDeps = {}): Promise<
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: per-OS branching is inherently a switch — extracting per-OS helpers obscures the resolution order
 function locate(d: {
   platform: NodeJS.Platform;
   env: NodeJS.ProcessEnv;

@@ -22,6 +22,7 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   notarize: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: dmg
       arch: [arm64, x64]
@@ -47,6 +48,7 @@ dmg:
       path: /Applications
 win:
   icon: resources/icon.ico
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
       arch: [x64, arm64]
@@ -55,7 +57,21 @@ nsis:
   allowToChangeInstallationDirectory: true
 linux:
   icon: resources/icon.png
+  # Hardcode `x64` (not ${arch}) because electron-builder substitutes ${arch}
+  # differently per Linux target convention (AppImage → x86_64, deb → amd64,
+  # rpm → x86_64). SmartDownload.vue + Homebrew cask + Flatpak manifest all
+  # reference `-x64.ext`; picking a fixed literal keeps them in sync. We
+  # only ship one Linux arch, so this is safe until we add arm64.
+  artifactName: ${productName}-${version}-x64.${ext}
   target:
     - target: AppImage
       arch: [x64]
+    # Snap is built in a separate, best-effort CI step (see
+    # .github/workflows/release.yml) because snapcraft on ubuntu-latest
+    # is heavyweight and occasionally flakes. The target config below is
+    # used when that step invokes `electron-builder --linux snap`.
   category: Graphics
+snap:
+  grade: stable
+  confinement: strict
+  summary: Prompt → polished HTML prototypes, slide decks, and marketing assets.

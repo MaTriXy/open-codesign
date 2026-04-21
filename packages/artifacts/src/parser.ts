@@ -176,7 +176,6 @@ export function createArtifactParser() {
  *                 must hold back from `start` and wait for more input
  *   - `none`:     no candidate; caller may flush the entire buffer as text
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: quote-aware tag scanning is inherently branchy; splitting hurts clarity
 function findOpenTag(buffer: string): OpenTagMatch {
   let from = 0;
   while (from <= buffer.length) {

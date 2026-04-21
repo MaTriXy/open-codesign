@@ -620,7 +620,6 @@ export interface GenerateViaAgentDeps {
  *
  * Not exposed through the IPC layer unless USE_AGENT_RUNTIME is truthy.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestration step with linear branching; Phase 2 will split into smaller pipeline stages.
 export async function generateViaAgent(
   input: GenerateInput,
   deps: GenerateViaAgentDeps = {},

@@ -99,29 +99,30 @@ Open CoDesign 把自然语言提示词变成精美的 HTML 原型、幻灯片或
 
 ### 1. 安装
 
-**包管理器**（推荐）：
-
-```sh
-# macOS — Homebrew
-brew tap OpenCoworkAI/tap
-brew install --cask open-codesign
-
-# Windows — winget
-winget install OpenCoworkAI.open-codesign
-
-# Windows — Scoop
-scoop bucket add opencowork https://github.com/OpenCoworkAI/scoop-bucket
-scoop install opencowork/open-codesign
-```
-
-**直接下载** 从 [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases)：
+**直接下载**（v0.1.x）从 [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases)：
 
 | 平台 | 文件 |
 |---|---|
 | macOS（Apple Silicon）| `open-codesign-*-arm64.dmg` |
-| macOS（Intel）| `open-codesign-*.dmg` |
-| Windows（x64 / arm64）| `open-codesign-*-setup.exe` |
-| Linux | `open-codesign-*.AppImage` |
+| macOS（Intel）| `open-codesign-*-x64.dmg` |
+| Windows（x64）| `open-codesign-*-x64-setup.exe` |
+| Windows（ARM64）| `open-codesign-*-arm64-setup.exe` |
+| Linux（x64）| `open-codesign-*-x64.AppImage` |
+
+每个 release 附带 `SHA256SUMS.txt` 和 CycloneDX SBOM（`*-sbom.cdx.json`），可用于校验下载完整性。
+
+<details>
+<summary><b>包管理器</b>——v0.1.x 状态</summary>
+
+| 管理器 | 命令 | 状态 |
+|---|---|---|
+| Homebrew Cask（macOS）| `brew install --cask opencoworkai/tap/open-codesign` | 🟡 Tap 待建 —— 模板见 [`packaging/homebrew/`](./packaging/homebrew/) |
+| winget（Windows）| `winget install OpenCoworkAI.OpenCoDesign` | 🟡 首次提交待处理 —— 模板见 [`packaging/winget/`](./packaging/winget/) |
+| Flathub（Linux）| `flatpak install flathub ai.opencowork.codesign` | 🟡 Flathub 提交待处理 —— 模板见 [`packaging/flatpak/`](./packaging/flatpak/) |
+| Snap（Linux）| `snap install --dangerous open-codesign-*.snap` | 🟡 每次 release 尽力附带；尚未推到 Snap Store |
+
+一旦配好对应的 tap / manifest / secret，CI 会在每次发版时自动开 PR —— 具体步骤见 `packaging/*/README.md`。
+</details>
 
 > **v0.1 说明：** 安装包暂未签名。macOS：右键 → 打开，或安装后在终端执行 `xattr -d com.apple.quarantine /Applications/open-codesign.app`。Windows：SmartScreen → 更多信息 → 仍要运行。
 > 需要已验证的构建？请从源码自行编译，参见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
