@@ -795,7 +795,7 @@
       "runId": "Run id",
       "fingerprint": "Fingerprint",
       "message": "Message",
-      "recentlyReported": "You reported the same issue {relative}.",
+      "recentlyReported": "You reported the same issue {{relative}}.",
       "viewPrevious": "View previous issue",
       "continueAnyway": "Continue anyway",
       "bundleSavedTitle": "Bundle saved",
