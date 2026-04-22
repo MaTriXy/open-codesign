@@ -113,7 +113,14 @@ function renderUpstream(event: DiagnosticEventRow, input: SummaryInput): string 
   const requestId = asString(ctx['upstream_request_id']);
   const retryCount = asString(ctx['retry_count']);
   const bodyHead = asString(ctx['redacted_body_head']);
-  const redactedBody = bodyHead === undefined ? undefined : truncate(redact(bodyHead, input), 400);
+  const scrubbedBody =
+    bodyHead === undefined
+      ? undefined
+      : input.includePromptText
+        ? bodyHead
+        : scrubPromptInLine(bodyHead);
+  const redactedBody =
+    scrubbedBody === undefined ? undefined : truncate(redactPathsAndUrls(scrubbedBody, input), 400);
   const rows: string[] = [];
   if (provider !== undefined) rows.push(`- Provider: ${provider}`);
   if (status !== undefined) rows.push(`- Status: ${status}`);
@@ -159,9 +166,19 @@ function formatValue(value: unknown): string {
 }
 
 function renderLogTail(input: SummaryInput): string {
-  const lines = input.recentLogTail.map((line) => redact(line, input));
+  const lines = input.recentLogTail.map((line) => {
+    const scrubbed = input.includePromptText ? line : scrubPromptInLine(line);
+    return redactPathsAndUrls(scrubbed, input);
+  });
   if (lines.length === 0) return '```\n(no log tail)\n```';
   return ['```', ...lines, '```'].join('\n');
+}
+
+function scrubPromptInLine(line: string): string {
+  return line
+    .replace(/("prompt"\s*:\s*)"(?:[^"\\]|\\.)*"/g, '$1"<prompt omitted>"')
+    .replace(/(\bprompt\s*[:=]\s*)"(?:[^"\\]|\\.)*"/g, '$1"<prompt omitted>"')
+    .replace(/(\bprompt\s*[:=]\s*)`(?:[^`\\]|\\.)*`/g, '$1`<prompt omitted>`');
 }
 
 function renderNotes(notes: string): string {
@@ -173,17 +190,25 @@ function redact(text: string, input: SummaryInput): string {
   if (!input.includePromptText && looksLikePrompt(out)) {
     out = PROMPT_OMITTED;
   }
+  return redactPathsAndUrls(out, input);
+}
+
+function redactPathsAndUrls(text: string, input: SummaryInput): string {
+  let out = text;
   if (!input.includePaths) out = out.replace(PATH_REGEX, PATH_OMITTED);
   if (!input.includeUrls) out = out.replace(URL_REGEX, URL_OMITTED);
   return out;
 }
 
 function looksLikePrompt(text: string): boolean {
-  if (/"prompt"\s*:/i.test(text)) return true;
-  if (/\bprompt\b\s*[:=]/i.test(text)) return true;
-  if (text.length > 200 && (text.includes('\n\n') || text.includes('请'))) {
-    return true;
-  }
+  // JSON key / field markers that unambiguously indicate prompt bodies.
+  // These are structural — they only appear when code explicitly put a
+  // prompt behind a named field, not in natural-language messages.
+  if (/"prompt"\s*:\s*"/.test(text)) return true;
+  if (/\bprompt\s*[:=]\s*"/.test(text)) return true;
+  if (/\bprompt\s*[:=]\s*`/.test(text)) return true;
+  // Intentionally no heuristic on length + punctuation: Chinese error
+  // messages frequently contain 请/请问/请检查 and aren't prompts.
   return false;
 }
 

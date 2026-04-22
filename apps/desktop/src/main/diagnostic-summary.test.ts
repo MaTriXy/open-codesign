@@ -151,15 +151,53 @@ describe('composeSummaryMarkdown', () => {
   });
 
   it('redacts prompt-looking message when includePromptText is false', () => {
-    const longPrompt = `You are a helpful assistant.\n\n${'x'.repeat(250)}\n\n请帮我写代码`;
+    const jsonPrompt = `generate.request data={"prompt":"${'x'.repeat(250)}"}`;
     const md = composeSummaryMarkdown(
       baseInput({
-        event: baseEvent({ message: longPrompt }),
+        event: baseEvent({ message: jsonPrompt }),
         includePromptText: false,
       }),
     );
     expect(md).toContain('<prompt omitted>');
     expect(md).not.toContain('x'.repeat(250));
+  });
+
+  it('preserves Chinese error message containing 请', () => {
+    const longChinese = `请检查网络连接后重试。${'错'.repeat(300)}`;
+    const md = composeSummaryMarkdown(
+      baseInput({
+        event: baseEvent({ message: longChinese }),
+        includePromptText: false,
+      }),
+    );
+    expect(md).not.toContain('<prompt omitted>');
+    expect(md).toContain('请检查网络连接后重试');
+  });
+
+  it('log tail redacts prompt JSON when includePromptText=false', () => {
+    const md = composeSummaryMarkdown(
+      baseInput({
+        recentLogTail: [
+          '[00:00] generate.request data={"prompt":"help me build X","model":"sonnet"}',
+          '[00:01] prompt: "another secret body"',
+        ],
+        includePromptText: false,
+      }),
+    );
+    expect(md).not.toContain('help me build X');
+    expect(md).not.toContain('another secret body');
+    expect(md).toContain('<prompt omitted>');
+    expect(md).toContain('"model":"sonnet"');
+  });
+
+  it('log tail preserves prompt content when includePromptText=true', () => {
+    const md = composeSummaryMarkdown(
+      baseInput({
+        recentLogTail: ['[00:00] generate.request data={"prompt":"help me build X"}'],
+        includePromptText: true,
+      }),
+    );
+    expect(md).toContain('help me build X');
   });
 
   it('caps output at 20 KB with a truncation suffix', () => {
