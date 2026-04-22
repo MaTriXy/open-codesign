@@ -9,15 +9,18 @@ import type {
   CommentRow,
   CommentScope,
   Design,
+  DiagnosticEventRow,
   LocalInputFile,
   ModelRef,
   OnboardingState,
+  ReportEventInput,
+  ReportEventResult,
   SelectedElement,
 } from '@open-codesign/shared';
 import { create } from 'zustand';
 import type { StoreApi } from 'zustand';
 import type { CodesignApi, ExportFormat } from '../../preload/index';
-import { recordAction } from './lib/action-timeline';
+import { recordAction, snapshotTimeline } from './lib/action-timeline';
 import { rendererLogger } from './lib/renderer-logger';
 
 declare global {
@@ -183,6 +186,19 @@ interface CodesignState {
   // Workstream G — canvas file tabs
   canvasTabs: CanvasTab[];
   activeCanvasTab: number;
+
+  // PR4 — diagnostics slice. Pull-based: Diagnostics panel + error UI call
+  // `refreshDiagnosticEvents` on mount / when a failure surfaces. No polling.
+  recentEvents: DiagnosticEventRow[];
+  unreadErrorCount: number;
+  /** Timestamp of the last time the user opened the Diagnostics panel.
+   *  `unreadErrorCount` counts error-level events whose `ts > lastReadTs`. */
+  lastReadTs: number;
+  refreshDiagnosticEvents: () => Promise<void>;
+  markDiagnosticsRead: () => void;
+  reportDiagnosticEvent: (
+    input: Omit<ReportEventInput, 'schemaVersion' | 'timeline'>,
+  ) => Promise<ReportEventResult>;
 
   loadConfig: () => Promise<void>;
   completeOnboarding: (next: OnboardingState) => void;
@@ -1058,6 +1074,10 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
 
   canvasTabs: [FILES_TAB],
   activeCanvasTab: 0,
+
+  recentEvents: [],
+  unreadErrorCount: 0,
+  lastReadTs: 0,
 
   clearIframeErrors() {
     set({ iframeErrors: [] });
@@ -2247,5 +2267,35 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
 
   resetCanvasTabs() {
     set({ canvasTabs: [FILES_TAB], activeCanvasTab: 0 });
+  },
+
+  async refreshDiagnosticEvents() {
+    const api = window.codesign?.diagnostics;
+    if (!api?.listEvents) return;
+    const result = await api.listEvents({
+      schemaVersion: 1,
+      limit: 100,
+      includeTransient: false,
+    });
+    const events = result.events;
+    const { lastReadTs } = get();
+    const unreadErrorCount = events.filter((e) => e.level === 'error' && e.ts > lastReadTs).length;
+    set({ recentEvents: events, unreadErrorCount });
+  },
+
+  markDiagnosticsRead() {
+    set({ unreadErrorCount: 0, lastReadTs: Date.now() });
+  },
+
+  async reportDiagnosticEvent(input) {
+    const api = window.codesign?.diagnostics;
+    if (!api?.reportEvent) {
+      throw new Error('diagnostics.reportEvent unavailable');
+    }
+    return api.reportEvent({
+      schemaVersion: 1,
+      ...input,
+      timeline: snapshotTimeline(),
+    });
   },
 }));

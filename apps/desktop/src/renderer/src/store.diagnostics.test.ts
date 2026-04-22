@@ -1,0 +1,137 @@
+import type {
+  DiagnosticEventRow,
+  ListEventsResult,
+  ReportEventInput,
+  ReportEventResult,
+} from '@open-codesign/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { recordAction, resetTimeline } from './lib/action-timeline';
+import { useCodesignStore } from './store';
+
+const initialState = useCodesignStore.getState();
+
+function makeEvent(partial: Partial<DiagnosticEventRow>): DiagnosticEventRow {
+  return {
+    id: 1,
+    schemaVersion: 1,
+    ts: Date.now(),
+    level: 'info',
+    code: 'E_TEST',
+    scope: 'test',
+    runId: undefined,
+    fingerprint: 'fp',
+    message: 'msg',
+    stack: undefined,
+    transient: false,
+    count: 1,
+    context: undefined,
+    ...partial,
+  };
+}
+
+function stubWindow(
+  listEvents: ReturnType<typeof vi.fn>,
+  reportEvent: ReturnType<typeof vi.fn>,
+): void {
+  (globalThis as unknown as { window: { codesign: unknown } }).window = {
+    codesign: {
+      diagnostics: {
+        listEvents,
+        reportEvent,
+      },
+    },
+  };
+}
+
+beforeEach(() => {
+  useCodesignStore.setState({
+    ...initialState,
+    recentEvents: [],
+    unreadErrorCount: 0,
+    lastReadTs: 0,
+  });
+  resetTimeline();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  (globalThis as unknown as { window?: unknown }).window = undefined;
+});
+
+describe('diagnostics slice', () => {
+  it('refreshDiagnosticEvents populates recentEvents and unreadErrorCount', async () => {
+    const now = Date.now();
+    const events: DiagnosticEventRow[] = [
+      makeEvent({ id: 1, ts: now - 10, level: 'error' }),
+      makeEvent({ id: 2, ts: now - 5, level: 'warn' }),
+      makeEvent({ id: 3, ts: now, level: 'error' }),
+    ];
+    const listEvents = vi
+      .fn<(...args: unknown[]) => Promise<ListEventsResult>>()
+      .mockResolvedValue({ schemaVersion: 1, events });
+    const reportEvent = vi.fn<(...args: unknown[]) => Promise<ReportEventResult>>();
+    stubWindow(listEvents, reportEvent);
+
+    await useCodesignStore.getState().refreshDiagnosticEvents();
+
+    expect(listEvents).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      limit: 100,
+      includeTransient: false,
+    });
+    const state = useCodesignStore.getState();
+    expect(state.recentEvents).toHaveLength(3);
+    expect(state.unreadErrorCount).toBe(2);
+  });
+
+  it('markDiagnosticsRead zeroes unreadErrorCount', async () => {
+    const events: DiagnosticEventRow[] = [
+      makeEvent({ id: 1, level: 'error' }),
+      makeEvent({ id: 2, level: 'error' }),
+    ];
+    const listEvents = vi
+      .fn<(...args: unknown[]) => Promise<ListEventsResult>>()
+      .mockResolvedValue({ schemaVersion: 1, events });
+    const reportEvent = vi.fn<(...args: unknown[]) => Promise<ReportEventResult>>();
+    stubWindow(listEvents, reportEvent);
+
+    await useCodesignStore.getState().refreshDiagnosticEvents();
+    expect(useCodesignStore.getState().unreadErrorCount).toBe(2);
+
+    useCodesignStore.getState().markDiagnosticsRead();
+    expect(useCodesignStore.getState().unreadErrorCount).toBe(0);
+    expect(useCodesignStore.getState().lastReadTs).toBeGreaterThan(0);
+  });
+
+  it('reportDiagnosticEvent passes timeline snapshot to IPC', async () => {
+    const listEvents = vi.fn<(...args: unknown[]) => Promise<ListEventsResult>>();
+    const reportEvent = vi
+      .fn<(...args: unknown[]) => Promise<ReportEventResult>>()
+      .mockResolvedValue({
+        schemaVersion: 1,
+        issueUrl: 'https://example.com/issue',
+        bundlePath: '/tmp/bundle.zip',
+        summaryMarkdown: '# report',
+      });
+    stubWindow(listEvents, reportEvent);
+
+    recordAction({ type: 'prompt.submit' });
+
+    const result = await useCodesignStore.getState().reportDiagnosticEvent({
+      eventId: 42,
+      includePromptText: false,
+      includePaths: false,
+      includeUrls: false,
+      includeTimeline: true,
+      notes: 'hello',
+    });
+
+    expect(reportEvent).toHaveBeenCalledTimes(1);
+    const payload = reportEvent.mock.calls[0]?.[0] as ReportEventInput;
+    expect(payload.schemaVersion).toBe(1);
+    expect(payload.eventId).toBe(42);
+    expect(payload.timeline).toHaveLength(1);
+    expect(payload.timeline[0]?.type).toBe('prompt.submit');
+    expect(result.issueUrl).toBe('https://example.com/issue');
+  });
+});
