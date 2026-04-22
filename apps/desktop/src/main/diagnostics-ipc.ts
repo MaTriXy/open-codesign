@@ -188,15 +188,31 @@ function parseIsFingerprintRecentInput(raw: unknown): string {
   return r['fingerprint'] as string;
 }
 
-/** Regex that matches common API key shapes; used to redact config content. */
+/** Regex that matches common API key shapes; used as a secondary pass so keys
+ *  that leak into unexpected fields (e.g. `notes = "my sk-abcdef..."`) still
+ *  get masked. Format-based so it is necessarily narrow — the primary defense
+ *  is field-based redaction below. */
 const API_KEY_RE = /(sk-[a-zA-Z0-9]{20,}|[a-f0-9]{32,})/g;
+
+/** Mask the VALUE of any TOML line whose key looks sensitive, regardless of
+ *  the value's format. Google (AIzaSy...), Azure base64, DeepSeek, and future
+ *  bearer tokens all slip past format-based regexes. */
+export function redactSensitiveTomlFields(s: string): string {
+  return s.replace(
+    /^(\s*(?:api_?key|token|bearer|secret|access_?token|refresh_?token|password)\s*=\s*)"[^"]*"/gim,
+    '$1"***REDACTED***"',
+  );
+}
 
 async function readConfigRedacted(): Promise<string> {
   try {
     const raw = await readFile(configPath(), 'utf8');
     // Strip prompt / history fields first (multi-line values between quotes).
     const noPrompts = raw.replace(/^(prompt|history)\s*=\s*"""[\s\S]*?"""/gm, '');
-    return noPrompts.replace(API_KEY_RE, '***REDACTED***');
+    // Field-based redaction is the primary defense; format-based is a fallback
+    // for keys that leak into non-sensitive-looking fields.
+    const fieldMasked = redactSensitiveTomlFields(noPrompts);
+    return fieldMasked.replace(API_KEY_RE, '***REDACTED***');
   } catch {
     return '(config not readable)';
   }

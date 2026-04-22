@@ -47,7 +47,7 @@ vi.mock('zip-lib', async () => {
   };
 });
 
-import { registerDiagnosticsIpc } from './diagnostics-ipc';
+import { registerDiagnosticsIpc, redactSensitiveTomlFields } from './diagnostics-ipc';
 import { initInMemoryDb, listDiagnosticEvents, recordDiagnosticEvent } from './snapshots-db';
 
 function invoke(channel: string, payload: unknown): unknown {
@@ -380,5 +380,43 @@ describe('diagnostics bundle main.log scrubbing', () => {
     });
     expect(mainLog).not.toContain('build me a rocket');
     expect(mainLog).toContain('<prompt omitted>');
+  });
+});
+
+describe('redactSensitiveTomlFields', () => {
+  it('masks google api_key=AIzaSy...', () => {
+    const input = 'api_key = "AIzaSyA1B2C3D4E5F6G7H8I9J0KLMNOPQRSTUVWX"';
+    expect(redactSensitiveTomlFields(input)).toBe('api_key = "***REDACTED***"');
+  });
+
+  it('masks api_key with unusual format', () => {
+    const input = 'apiKey = "custom-prefix_weird.format/ABC==xyz"';
+    expect(redactSensitiveTomlFields(input)).toBe('apiKey = "***REDACTED***"');
+  });
+
+  it('masks token / bearer / secret / access_token / refresh_token / password', () => {
+    const input = [
+      'token = "t1"',
+      'bearer = "b1"',
+      'secret = "s1"',
+      'access_token = "a1"',
+      'refresh_token = "r1"',
+      'password = "p1"',
+    ].join('\n');
+    const out = redactSensitiveTomlFields(input);
+    for (const raw of ['"t1"', '"b1"', '"s1"', '"a1"', '"r1"', '"p1"']) {
+      expect(out).not.toContain(raw);
+    }
+    expect(out.match(/"\*\*\*REDACTED\*\*\*"/g)?.length).toBe(6);
+  });
+
+  it('keeps non-sensitive string fields intact', () => {
+    const input = 'base_url = "https://api.example.com"\nname = "alice"';
+    expect(redactSensitiveTomlFields(input)).toBe(input);
+  });
+
+  it('is case-insensitive for keys', () => {
+    const input = 'API_KEY = "upper"';
+    expect(redactSensitiveTomlFields(input)).toBe('API_KEY = "***REDACTED***"');
   });
 });
