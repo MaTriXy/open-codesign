@@ -1,8 +1,7 @@
+import { useT } from '@open-codesign/i18n';
 import { Button } from '@open-codesign/ui';
-import { Loader2, LogOut, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { CodexOAuthStatus } from '../../../preload/index';
-import { useCodesignStore } from '../store';
 
 export interface ChatgptLoginCardProps {
   /** Called after a successful login or logout so the parent can refresh its provider list. */
@@ -79,6 +78,7 @@ export async function performLogout(deps: PerformLogoutDeps): Promise<boolean> {
 }
 
 export function ChatgptLoginCard(_props: ChatgptLoginCardProps) {
+  const t = useT();
   // Phase-1 WIP: feature is landing on feat/codex-chatgpt-oauth and is not
   // yet stable against the real backend. Render a coming-soon notice so
   // users don't try to log in, hit an opaque 400, and blame the app.
@@ -89,17 +89,16 @@ export function ChatgptLoginCard(_props: ChatgptLoginCardProps) {
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] py-[var(--space-2_5)] flex items-start gap-[var(--space-3)]">
       <div className="min-w-0 flex-1">
         <div className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
-          用 ChatGPT 订阅登录
+          {t('settings.providers.chatgptLogin.title')}
         </div>
         <p className="text-[var(--text-xs)] text-[var(--color-text-muted)] mt-0.5 leading-[var(--leading-body)]">
-          直接用你的 ChatGPT Plus / Pro / Team 订阅额度调用 Codex 模型（gpt-5.3-codex 等），无需 API
-          key。功能仍在打磨中，下个版本开放。
+          {t('settings.providers.chatgptLogin.description')}
         </p>
       </div>
       <div className="shrink-0">
         <Button variant="secondary" size="sm" disabled>
           <Sparkles className="w-3.5 h-3.5" />
-          正在支持中
+          {t('settings.providers.chatgptLogin.comingSoon')}
         </Button>
       </div>
     </div>
