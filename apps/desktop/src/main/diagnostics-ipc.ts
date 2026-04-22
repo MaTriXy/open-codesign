@@ -56,6 +56,13 @@ const LOGS_MAX = 4000;
 const DIAGNOSTICS_MAX = 500;
 const REPORTED_FINGERPRINTS_FILENAME = 'reported-fingerprints.json';
 
+// Defense-in-depth caps on IPC payload strings. A compromised renderer or
+// buggy caller could otherwise flood the main process / SQLite / bundle with
+// multi-MB fields. Keep these generous enough for real stack traces.
+const MESSAGE_MAX = 8_000;
+const STACK_MAX = 16_000;
+const CONTEXT_JSON_MAX = 4_000;
+
 /**
  * Map `process.platform` to the exact labels in `.github/ISSUE_TEMPLATE/bug_report.yml`
  * platform dropdown. Anything else (freebsd, aix, …) is left blank so the yml
@@ -190,19 +197,43 @@ function parseReportableError(raw: unknown): ReportableError {
   if (r['persistedEventId'] !== undefined && typeof r['persistedEventId'] !== 'number') {
     throw new CodesignError('error.persistedEventId must be a number if provided', 'IPC_BAD_INPUT');
   }
+  const messageField = typeof r['message'] === 'string' ? (r['message'] as string) : '';
+  if (messageField.length > MESSAGE_MAX) {
+    throw new CodesignError(`error.message exceeds ${MESSAGE_MAX} characters`, 'IPC_BAD_INPUT');
+  }
   const out: ReportableError = {
     localId: requireString('localId'),
     code: requireString('code'),
     scope: requireString('scope'),
-    message: typeof r['message'] === 'string' ? (r['message'] as string) : '',
+    message: messageField,
     fingerprint: requireString('fingerprint'),
     ts: r['ts'] as number,
   };
   const stack = optString('stack');
-  if (stack !== undefined) out.stack = stack;
+  if (stack !== undefined) {
+    if (stack.length > STACK_MAX) {
+      throw new CodesignError(`error.stack exceeds ${STACK_MAX} characters`, 'IPC_BAD_INPUT');
+    }
+    out.stack = stack;
+  }
   const runId = optString('runId');
   if (runId !== undefined) out.runId = runId;
-  if (r['context'] !== undefined) out.context = r['context'] as Record<string, unknown>;
+  if (r['context'] !== undefined) {
+    const ctx = r['context'] as Record<string, unknown>;
+    let serializedLen: number;
+    try {
+      serializedLen = JSON.stringify(ctx).length;
+    } catch {
+      throw new CodesignError('error.context must be JSON-serializable', 'IPC_BAD_INPUT');
+    }
+    if (serializedLen > CONTEXT_JSON_MAX) {
+      throw new CodesignError(
+        `error.context serialized length exceeds ${CONTEXT_JSON_MAX} characters`,
+        'IPC_BAD_INPUT',
+      );
+    }
+    out.context = ctx;
+  }
   if (r['persistedEventId'] !== undefined) out.persistedEventId = r['persistedEventId'] as number;
   const persistedFp = optString('persistedFingerprint');
   if (persistedFp !== undefined) out.persistedFingerprint = persistedFp;
@@ -303,14 +334,34 @@ function parseRecordRendererErrorInput(raw: unknown): {
   if (typeof r['message'] !== 'string') {
     throw new CodesignError('message must be a string', 'IPC_BAD_INPUT');
   }
+  if ((r['message'] as string).length > MESSAGE_MAX) {
+    throw new CodesignError(`message exceeds ${MESSAGE_MAX} characters`, 'IPC_BAD_INPUT');
+  }
   if (r['stack'] !== undefined && typeof r['stack'] !== 'string') {
     throw new CodesignError('stack must be a string if provided', 'IPC_BAD_INPUT');
+  }
+  if (r['stack'] !== undefined && (r['stack'] as string).length > STACK_MAX) {
+    throw new CodesignError(`stack exceeds ${STACK_MAX} characters`, 'IPC_BAD_INPUT');
   }
   if (r['runId'] !== undefined && typeof r['runId'] !== 'string') {
     throw new CodesignError('runId must be a string if provided', 'IPC_BAD_INPUT');
   }
   if (r['context'] !== undefined && (typeof r['context'] !== 'object' || r['context'] === null)) {
     throw new CodesignError('context must be an object if provided', 'IPC_BAD_INPUT');
+  }
+  if (r['context'] !== undefined) {
+    let serializedLen: number;
+    try {
+      serializedLen = JSON.stringify(r['context']).length;
+    } catch {
+      throw new CodesignError('context must be JSON-serializable', 'IPC_BAD_INPUT');
+    }
+    if (serializedLen > CONTEXT_JSON_MAX) {
+      throw new CodesignError(
+        `context serialized length exceeds ${CONTEXT_JSON_MAX} characters`,
+        'IPC_BAD_INPUT',
+      );
+    }
   }
   const out: {
     code: string;

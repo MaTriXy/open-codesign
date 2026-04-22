@@ -147,6 +147,37 @@ describe('diagnostics:v1:recordRendererError', () => {
       }),
     ).toThrow(/code/);
   });
+
+  it('recordRendererError rejects oversized fields', () => {
+    const db = initInMemoryDb();
+    registerDiagnosticsIpc(db);
+    expect(() =>
+      invoke('diagnostics:v1:recordRendererError', {
+        schemaVersion: 1,
+        code: 'X',
+        scope: 'y',
+        message: 'x'.repeat(8001),
+      }),
+    ).toThrow(/message exceeds 8000/);
+    expect(() =>
+      invoke('diagnostics:v1:recordRendererError', {
+        schemaVersion: 1,
+        code: 'X',
+        scope: 'y',
+        message: 'ok',
+        stack: 'x'.repeat(16001),
+      }),
+    ).toThrow(/stack exceeds 16000/);
+    expect(() =>
+      invoke('diagnostics:v1:recordRendererError', {
+        schemaVersion: 1,
+        code: 'X',
+        scope: 'y',
+        message: 'ok',
+        context: { huge: 'x'.repeat(4100) },
+      }),
+    ).toThrow(/context serialized length exceeds 4000/);
+  });
 });
 
 describe('diagnostics:v1:log persistence', () => {
@@ -360,6 +391,39 @@ describe('diagnostics:v1:reportEvent', () => {
     await expect(
       invoke('diagnostics:v1:reportEvent', baseReportInput({ timeline })),
     ).rejects.toThrow(/100 entries/);
+  });
+
+  it('reportEvent rejects error.message longer than 8KB', async () => {
+    const db = initInMemoryDb();
+    registerDiagnosticsIpc(db);
+    await expect(
+      invoke(
+        'diagnostics:v1:reportEvent',
+        baseReportInput({ error: baseError({ message: 'm'.repeat(8001) }) }),
+      ),
+    ).rejects.toThrow(/error\.message exceeds 8000/);
+  });
+
+  it('reportEvent rejects error.stack longer than 16KB', async () => {
+    const db = initInMemoryDb();
+    registerDiagnosticsIpc(db);
+    await expect(
+      invoke(
+        'diagnostics:v1:reportEvent',
+        baseReportInput({ error: baseError({ stack: 's'.repeat(16001) }) }),
+      ),
+    ).rejects.toThrow(/error\.stack exceeds 16000/);
+  });
+
+  it('reportEvent rejects error.context larger than 4KB when serialized', async () => {
+    const db = initInMemoryDb();
+    registerDiagnosticsIpc(db);
+    await expect(
+      invoke(
+        'diagnostics:v1:reportEvent',
+        baseReportInput({ error: baseError({ context: { huge: 'x'.repeat(4100) } }) }),
+      ),
+    ).rejects.toThrow(/error\.context serialized length exceeds 4000/);
   });
 
   it('trims logs when total URL would exceed 7KB', () => {
